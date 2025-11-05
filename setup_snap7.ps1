@@ -1,10 +1,6 @@
 # Snap7 Setup Script for Windows
 # This script downloads and sets up the Snap7 library for the S7Server project
 
-param(
-    [string]$Snap7Version = "1.4.2"
-)
-
 $ErrorActionPreference = "Stop"
 
 Write-Host "========================================" -ForegroundColor Cyan

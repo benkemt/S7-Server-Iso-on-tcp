@@ -113,36 +113,28 @@ int main() {
 
     // Allocate memory areas for PLC simulation
     // DB1 - Data Block 1 (256 bytes)
-    byte* DB1 = new byte[256];
-    memset(DB1, 0, 256);
+    byte* DB1 = new byte[256]();
     
     // DB2 - Data Block 2 (512 bytes)
-    byte* DB2 = new byte[512];
-    memset(DB2, 0, 512);
+    byte* DB2 = new byte[512]();
     
     // DB3 - Data Block 3 (128 bytes)
-    byte* DB3 = new byte[128];
-    memset(DB3, 0, 128);
+    byte* DB3 = new byte[128]();
     
     // Inputs (256 bytes)
-    byte* IArea = new byte[256];
-    memset(IArea, 0, 256);
+    byte* IArea = new byte[256]();
     
     // Outputs (256 bytes)
-    byte* QArea = new byte[256];
-    memset(QArea, 0, 256);
+    byte* QArea = new byte[256]();
     
     // Flags/Merkers (256 bytes)
-    byte* MArea = new byte[256];
-    memset(MArea, 0, 256);
+    byte* MArea = new byte[256]();
     
     // Timers (512 bytes)
-    byte* TArea = new byte[512];
-    memset(TArea, 0, 512);
+    byte* TArea = new byte[512]();
     
     // Counters (512 bytes)
-    byte* CArea = new byte[512];
-    memset(CArea, 0, 512);
+    byte* CArea = new byte[512]();
 
     // Initialize some test data in DB1
     DB1[0] = 42;      // Test value at DB1.DBB0
@@ -247,17 +239,20 @@ int main() {
     
     std::cout << "Server is running. Press Ctrl+C to stop.\n" << std::endl;
 
-    // Main server loop
+    // Main server loop with time-based status updates
+    auto lastStatusTime = std::chrono::steady_clock::now();
+    const auto statusInterval = std::chrono::seconds(30);
+    
     while (ServerRunning) {
         // Display status every 30 seconds
-        static int counter = 0;
-        if (counter % 30 == 0) {
+        auto currentTime = std::chrono::steady_clock::now();
+        if (currentTime - lastStatusTime >= statusInterval) {
             DisplayStatus(S7Server);
+            lastStatusTime = currentTime;
         }
         
         // Sleep for 1 second
         std::this_thread::sleep_for(std::chrono::seconds(1));
-        counter++;
     }
 
     // Shutdown
