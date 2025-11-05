@@ -150,52 +150,81 @@ int main() {
 
     // Register memory areas with the server
     int Result;
+    bool registrationFailed = false;
     
     Result = Srv_RegisterArea(S7Server, srvAreaDB, 1, DB1, 256);
     if (Result != 0) {
         std::cerr << "ERROR: Failed to register DB1!" << std::endl;
-        return 1;
+        registrationFailed = true;
     }
     
-    Result = Srv_RegisterArea(S7Server, srvAreaDB, 2, DB2, 512);
-    if (Result != 0) {
-        std::cerr << "ERROR: Failed to register DB2!" << std::endl;
-        return 1;
+    if (!registrationFailed) {
+        Result = Srv_RegisterArea(S7Server, srvAreaDB, 2, DB2, 512);
+        if (Result != 0) {
+            std::cerr << "ERROR: Failed to register DB2!" << std::endl;
+            registrationFailed = true;
+        }
     }
     
-    Result = Srv_RegisterArea(S7Server, srvAreaDB, 3, DB3, 128);
-    if (Result != 0) {
-        std::cerr << "ERROR: Failed to register DB3!" << std::endl;
-        return 1;
+    if (!registrationFailed) {
+        Result = Srv_RegisterArea(S7Server, srvAreaDB, 3, DB3, 128);
+        if (Result != 0) {
+            std::cerr << "ERROR: Failed to register DB3!" << std::endl;
+            registrationFailed = true;
+        }
     }
     
-    Result = Srv_RegisterArea(S7Server, srvAreaPE, 0, IArea, 256);
-    if (Result != 0) {
-        std::cerr << "ERROR: Failed to register Input area!" << std::endl;
-        return 1;
+    if (!registrationFailed) {
+        Result = Srv_RegisterArea(S7Server, srvAreaPE, 0, IArea, 256);
+        if (Result != 0) {
+            std::cerr << "ERROR: Failed to register Input area!" << std::endl;
+            registrationFailed = true;
+        }
     }
     
-    Result = Srv_RegisterArea(S7Server, srvAreaPA, 0, QArea, 256);
-    if (Result != 0) {
-        std::cerr << "ERROR: Failed to register Output area!" << std::endl;
-        return 1;
+    if (!registrationFailed) {
+        Result = Srv_RegisterArea(S7Server, srvAreaPA, 0, QArea, 256);
+        if (Result != 0) {
+            std::cerr << "ERROR: Failed to register Output area!" << std::endl;
+            registrationFailed = true;
+        }
     }
     
-    Result = Srv_RegisterArea(S7Server, srvAreaMK, 0, MArea, 256);
-    if (Result != 0) {
-        std::cerr << "ERROR: Failed to register Flags area!" << std::endl;
-        return 1;
+    if (!registrationFailed) {
+        Result = Srv_RegisterArea(S7Server, srvAreaMK, 0, MArea, 256);
+        if (Result != 0) {
+            std::cerr << "ERROR: Failed to register Flags area!" << std::endl;
+            registrationFailed = true;
+        }
     }
     
-    Result = Srv_RegisterArea(S7Server, srvAreaTM, 0, TArea, 512);
-    if (Result != 0) {
-        std::cerr << "ERROR: Failed to register Timers area!" << std::endl;
-        return 1;
+    if (!registrationFailed) {
+        Result = Srv_RegisterArea(S7Server, srvAreaTM, 0, TArea, 512);
+        if (Result != 0) {
+            std::cerr << "ERROR: Failed to register Timers area!" << std::endl;
+            registrationFailed = true;
+        }
     }
     
-    Result = Srv_RegisterArea(S7Server, srvAreaCT, 0, CArea, 512);
-    if (Result != 0) {
-        std::cerr << "ERROR: Failed to register Counters area!" << std::endl;
+    if (!registrationFailed) {
+        Result = Srv_RegisterArea(S7Server, srvAreaCT, 0, CArea, 512);
+        if (Result != 0) {
+            std::cerr << "ERROR: Failed to register Counters area!" << std::endl;
+            registrationFailed = true;
+        }
+    }
+
+    if (registrationFailed) {
+        // Cleanup on failure
+        Srv_Destroy(&S7Server);
+        delete[] DB1;
+        delete[] DB2;
+        delete[] DB3;
+        delete[] IArea;
+        delete[] QArea;
+        delete[] MArea;
+        delete[] TArea;
+        delete[] CArea;
         return 1;
     }
 

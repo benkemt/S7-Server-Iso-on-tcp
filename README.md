@@ -1,6 +1,10 @@
 # S7-Server-Iso-on-tcp
 A Siemens S7 server implementation using ISO-on-TCP protocol with the Snap7 library. This server is designed for testing Node-RED S7 applications on Windows.
 
+## ⚠️ Security Notice
+
+**This server is intended for testing and development purposes only.** It should be run in isolated, trusted networks. See [SECURITY.md](SECURITY.md) for detailed security considerations.
+
 ## Features
 
 - **ISO-on-TCP Protocol**: Full implementation of Siemens S7 communication protocol
