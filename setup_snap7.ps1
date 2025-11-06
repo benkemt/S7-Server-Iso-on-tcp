@@ -1,5 +1,5 @@
 # Snap7 Setup Script for Windows
-# This script downloads and sets up the Snap7 library for the S7Server project
+# This script sets up the Snap7 library for the S7Server project from a local clone
 
 $ErrorActionPreference = "Stop"
 
@@ -11,11 +11,28 @@ Write-Host ""
 # Define paths
 $ProjectRoot = $PSScriptRoot
 $Snap7Dir = Join-Path $ProjectRoot "S7Server\snap7"
-$TempDir = Join-Path $ProjectRoot "temp_snap7"
+$Snap7SourceDir = "D:\Source\Repos\snap7"
 
 Write-Host "Project Root: $ProjectRoot" -ForegroundColor Gray
 Write-Host "Snap7 Directory: $Snap7Dir" -ForegroundColor Gray
+Write-Host "Snap7 Source: $Snap7SourceDir" -ForegroundColor Gray
 Write-Host ""
+
+# Check if Snap7 source directory exists
+if (-not (Test-Path $Snap7SourceDir)) {
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host "ERROR: Snap7 source directory not found!" -ForegroundColor Red
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Expected path: $Snap7SourceDir" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Please ensure the Snap7 repository is cloned at the expected location." -ForegroundColor White
+    Write-Host "If it's at a different location, update the script's Snap7SourceDir variable." -ForegroundColor White
+    Write-Host ""
+    Write-Host "Press any key to exit..."
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    exit 1
+}
 
 # Create snap7 directory if it doesn't exist
 if (-not (Test-Path $Snap7Dir)) {
@@ -40,129 +57,110 @@ if ($FilesExist) {
     foreach ($file in $RequiredFiles) {
         $filePath = Join-Path $Snap7Dir $file
         if (Test-Path $filePath) {
-            $fileSize = (Get-Item $filePath).Length
-            Write-Host "  - $file ($fileSize bytes)" -ForegroundColor Gray
+        $fileSize = (Get-Item $filePath).Length
+   Write-Host "  - $file ($fileSize bytes)" -ForegroundColor Gray
         }
     }
     Write-Host ""
-    $response = Read-Host "Do you want to re-download and overwrite? (y/N)"
+    $response = Read-Host "Do you want to re-copy and overwrite? (y/N)"
     if ($response -ne "y" -and $response -ne "Y") {
-        Write-Host "Setup cancelled. Existing files will be used." -ForegroundColor Yellow
+    Write-Host "Setup cancelled. Existing files will be used." -ForegroundColor Yellow
         exit 0
     }
 }
 
-# Information message
-Write-Host "========================================" -ForegroundColor Yellow
-Write-Host "MANUAL DOWNLOAD REQUIRED" -ForegroundColor Yellow
-Write-Host "========================================" -ForegroundColor Yellow
-Write-Host ""
-Write-Host "Snap7 must be downloaded manually from:" -ForegroundColor White
-Write-Host "http://snap7.sourceforge.net/" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Steps:" -ForegroundColor White
-Write-Host "1. Visit the Snap7 website" -ForegroundColor Gray
-Write-Host "2. Download the latest Windows release (x64)" -ForegroundColor Gray
-Write-Host "3. Extract the archive to a temporary location" -ForegroundColor Gray
-Write-Host ""
-Write-Host "After downloading, you need to copy these files to:" -ForegroundColor White
-Write-Host "  $Snap7Dir" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Required files:" -ForegroundColor White
-Write-Host "  - snap7.h   (from snap7-full-x.x.x/include/)" -ForegroundColor Gray
-Write-Host "  - snap7.lib (from snap7-full-x.x.x/build/bin/x64/)" -ForegroundColor Gray
-Write-Host "  - snap7.dll (from snap7-full-x.x.x/build/bin/x64/)" -ForegroundColor Gray
-Write-Host ""
-Write-Host "========================================" -ForegroundColor Yellow
+# Define source paths for the cloned repository
+$HeaderSource = Join-Path $Snap7SourceDir "release\wrappers\c-cpp\snap7.h"
+$LibSource = Join-Path $Snap7SourceDir "build\bin\win64\snap7.lib"
+$DllSource = Join-Path $Snap7SourceDir "build\bin\win64\snap7.dll"
+
+Write-Host "Checking for required files..." -ForegroundColor Yellow
 Write-Host ""
 
-$response = Read-Host "Have you already downloaded Snap7? (y/N)"
-if ($response -eq "y" -or $response -eq "Y") {
+# Check if build files exist
+$NeedToBuild = $false
+if (-not (Test-Path $LibSource) -or -not (Test-Path $DllSource)) {
+  Write-Host "Build files not found. You need to build Snap7 first." -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "Please select the Snap7 directory (the root folder of the extracted archive)..." -ForegroundColor Yellow
-    
-    # Prompt for Snap7 directory
-    Add-Type -AssemblyName System.Windows.Forms
-    $folderBrowser = New-Object System.Windows.Forms.FolderBrowserDialog
-    $folderBrowser.Description = "Select the Snap7 root directory (e.g., snap7-full-1.4.2)"
-    $folderBrowser.RootFolder = "MyComputer"
-    
-    if ($folderBrowser.ShowDialog() -eq "OK") {
-        $Snap7SourceDir = $folderBrowser.SelectedPath
-        Write-Host "Selected: $Snap7SourceDir" -ForegroundColor Gray
-        Write-Host ""
-        
-        # Define source paths
-        $HeaderSource = Join-Path $Snap7SourceDir "include\snap7.h"
-        $LibSource = Join-Path $Snap7SourceDir "build\bin\x64\snap7.lib"
-        $DllSource = Join-Path $Snap7SourceDir "build\bin\x64\snap7.dll"
-        
-        # Alternative paths (in case structure differs)
-        if (-not (Test-Path $LibSource)) {
-            $LibSource = Join-Path $Snap7SourceDir "release\Windows\x64\snap7.lib"
-        }
-        if (-not (Test-Path $DllSource)) {
-            $DllSource = Join-Path $Snap7SourceDir "release\Windows\x64\snap7.dll"
-        }
-        
-        # Check and copy files
-        $success = $true
-        
-        Write-Host "Copying files..." -ForegroundColor Yellow
-        
-        if (Test-Path $HeaderSource) {
-            Copy-Item $HeaderSource -Destination $Snap7Dir -Force
-            Write-Host "  - snap7.h copied" -ForegroundColor Green
-        } else {
-            Write-Host "  - snap7.h NOT FOUND at $HeaderSource" -ForegroundColor Red
-            $success = $false
-        }
-        
-        if (Test-Path $LibSource) {
-            Copy-Item $LibSource -Destination $Snap7Dir -Force
-            Write-Host "  - snap7.lib copied" -ForegroundColor Green
-        } else {
-            Write-Host "  - snap7.lib NOT FOUND at $LibSource" -ForegroundColor Red
-            $success = $false
-        }
-        
-        if (Test-Path $DllSource) {
-            Copy-Item $DllSource -Destination $Snap7Dir -Force
-            Write-Host "  - snap7.dll copied" -ForegroundColor Green
-        } else {
-            Write-Host "  - snap7.dll NOT FOUND at $DllSource" -ForegroundColor Red
-            $success = $false
-        }
-        
-        Write-Host ""
-        
-        if ($success) {
-            Write-Host "========================================" -ForegroundColor Green
-            Write-Host "Setup completed successfully!" -ForegroundColor Green
-            Write-Host "========================================" -ForegroundColor Green
-            Write-Host ""
-            Write-Host "You can now build the project in Visual Studio 2022." -ForegroundColor White
-            Write-Host ""
-        } else {
-            Write-Host "========================================" -ForegroundColor Red
-            Write-Host "Setup incomplete!" -ForegroundColor Red
-            Write-Host "========================================" -ForegroundColor Red
-            Write-Host ""
-            Write-Host "Some files could not be found. Please check:" -ForegroundColor Yellow
-            Write-Host "1. The Snap7 directory path is correct" -ForegroundColor Gray
-            Write-Host "2. You downloaded the Windows x64 version" -ForegroundColor Gray
-            Write-Host "3. The archive was fully extracted" -ForegroundColor Gray
-            Write-Host ""
-            Write-Host "You may need to manually copy the files to:" -ForegroundColor Yellow
-            Write-Host "  $Snap7Dir" -ForegroundColor Cyan
-            Write-Host ""
-        }
-    } else {
-        Write-Host "Folder selection cancelled." -ForegroundColor Yellow
-    }
+    Write-Host "Please follow these steps:" -ForegroundColor White
+    Write-Host "1. Open Visual Studio 2022" -ForegroundColor Gray
+    Write-Host "2. Open the solution: $Snap7SourceDir\build\windows\VS2022\snap7.sln" -ForegroundColor Gray
+    Write-Host "3. Select 'Release' and 'x64' configuration" -ForegroundColor Gray
+    Write-Host "4. Build the solution" -ForegroundColor Gray
+    Write-Host "5. Run this script again" -ForegroundColor Gray
+    Write-Host ""
+    $NeedToBuild = $true
+}
+
+if (-not (Test-Path $HeaderSource)) {
+    Write-Host "  - snap7.h NOT FOUND at $HeaderSource" -ForegroundColor Red
+    $NeedToBuild = $true
+}
+
+if ($NeedToBuild) {
+    Write-Host "Press any key to exit..."
+    $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    exit 1
+}
+
+# Copy files
+$success = $true
+
+Write-Host "Copying files..." -ForegroundColor Yellow
+Write-Host ""
+
+if (Test-Path $HeaderSource) {
+    Copy-Item $HeaderSource -Destination $Snap7Dir -Force
+ Write-Host "  ? snap7.h copied" -ForegroundColor Green
 } else {
-    Write-Host "Please download Snap7 from http://snap7.sourceforge.net/" -ForegroundColor Yellow
-    Write-Host "Then run this script again." -ForegroundColor Yellow
+    Write-Host "  ? snap7.h NOT FOUND at $HeaderSource" -ForegroundColor Red
+ $success = $false
+}
+
+if (Test-Path $LibSource) {
+    Copy-Item $LibSource -Destination $Snap7Dir -Force
+  Write-Host "  ? snap7.lib copied" -ForegroundColor Green
+} else {
+ Write-Host "  ? snap7.lib NOT FOUND at $LibSource" -ForegroundColor Red
+    $success = $false
+}
+
+if (Test-Path $DllSource) {
+    Copy-Item $DllSource -Destination $Snap7Dir -Force
+    Write-Host "  ? snap7.dll copied" -ForegroundColor Green
+} else {
+    Write-Host "  ? snap7.dll NOT FOUND at $DllSource" -ForegroundColor Red
+    $success = $false
+}
+
+Write-Host ""
+
+if ($success) {
+    Write-Host "========================================" -ForegroundColor Green
+    Write-Host "Setup completed successfully!" -ForegroundColor Green
+    Write-Host "========================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Files copied to: $Snap7Dir" -ForegroundColor White
+    Write-Host ""
+    foreach ($file in $RequiredFiles) {
+        $filePath = Join-Path $Snap7Dir $file
+        if (Test-Path $filePath) {
+       $fileSize = (Get-Item $filePath).Length
+        Write-Host "  - $file ($fileSize bytes)" -ForegroundColor Gray
+        }
+    }
+    Write-Host ""
+ Write-Host "You can now build the S7-Server-Iso-on-tcp project in Visual Studio 2022." -ForegroundColor White
+    Write-Host ""
+} else {
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host "Setup incomplete!" -ForegroundColor Red
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Some files could not be found. Please ensure:" -ForegroundColor Yellow
+    Write-Host "1. The Snap7 repository is cloned at: $Snap7SourceDir" -ForegroundColor Gray
+ Write-Host "2. You have built the Snap7 project (VS2022, Release, x64)" -ForegroundColor Gray
+    Write-Host ""
 }
 
 Write-Host ""
