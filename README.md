@@ -1,5 +1,5 @@
 # S7-Server-Iso-on-tcp
-A Siemens S7 server implementation using ISO-on-TCP protocol with the Snap7 library. This server is designed for testing Node-RED S7 applications on Windows.
+A Siemens S7 server implementation using ISO-on-TCP protocol with the Snap7 library. This server is designed for testing Node-RED S7 applications on Windows and Linux.
 
 ## ⚠️ Security Notice
 
@@ -11,14 +11,22 @@ A Siemens S7 server implementation using ISO-on-TCP protocol with the Snap7 libr
 - **Multiple Memory Areas**: Supports Data Blocks (DB), Inputs (I), Outputs (Q), Flags (M), Timers (T), and Counters (C)
 - **Real-time Monitoring**: Event callbacks for server operations, read/write operations
 - **Pre-configured Test Data**: Includes test data in Data Blocks for immediate testing
-- **Windows Compatible**: Built with Visual Studio 2022 for Windows systems
+- **Cross-Platform**: Works on Windows (Visual Studio) and Linux (CMake/GCC)
 
 ## Requirements
 
+### Windows
 - Windows 10 or later
 - Visual Studio 2022 (Community, Professional, or Enterprise)
 - Snap7 library (download instructions below)
 - Administrator privileges (required for port 102)
+
+### Ubuntu/Linux
+- Ubuntu 20.04 LTS or later (or any Debian-based distribution)
+- CMake 3.10 or higher
+- GCC/G++ compiler (build-essential package)
+- Snap7 library (download and build instructions in [BUILD_UBUNTU.md](BUILD_UBUNTU.md))
+- Root/sudo privileges (required for port 102)
 
 ## Memory Configuration
 
@@ -47,6 +55,12 @@ The server initializes with the following test data:
 - **DB2.DBB2**: 3
 
 ## Setup Instructions
+
+> 📋 **Choose Your Platform:**
+> - **Windows**: Follow the instructions below
+> - **Ubuntu/Linux**: See [BUILD_UBUNTU.md](BUILD_UBUNTU.md) for detailed Linux build instructions
+
+### Windows Setup
 
 ### 1. Download Snap7 Library
 
