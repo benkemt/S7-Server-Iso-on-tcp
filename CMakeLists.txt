@@ -37,9 +37,9 @@ if(WIN32)
 elseif(UNIX)
     # Linux-specific libraries
     # Try to use the static library if available, otherwise use shared library
-    # The NAMES order prefers static linking (libsnap7.a) for better portability
+    # CMake will search for libsnap7.a and libsnap7.so based on CMAKE_FIND_LIBRARY_SUFFIXES
     find_library(SNAP7_LIB 
-        NAMES libsnap7.a snap7
+        NAMES snap7
         PATHS ${PROJECT_SOURCE_DIR}/S7Server/snap7
         NO_DEFAULT_PATH
     )

@@ -11,8 +11,9 @@ echo "========================================"
 echo ""
 
 # Check if running on Linux
-if [[ "$OSTYPE" != "linux-gnu"* ]]; then
-    echo "ERROR: This script is for Linux/Ubuntu only"
+if [[ "$(uname -s)" != "Linux" ]]; then
+    echo "ERROR: This script is for Linux only"
+    echo "Detected OS: $(uname -s)"
     exit 1
 fi
 
@@ -95,7 +96,8 @@ elif [ "$ARCH" = "i686" ] || [ "$ARCH" = "i386" ]; then
 elif [ "$ARCH" = "armv7l" ] || [[ "$ARCH" == armv7* ]]; then
     MAKEFILE="arm_v7_linux.mk"
 elif [ "$ARCH" = "aarch64" ]; then
-    # Note: ARM64 uses the same makefile as ARMv7 in Snap7
+    # ARM64/AArch64: Snap7 may use arm_v7 makefile or have a separate arm64 build
+    # Check Snap7 documentation for your version to confirm architecture support
     MAKEFILE="arm_v7_linux.mk"
 else
     echo "WARNING: Unknown architecture $ARCH, trying x86_64_linux.mk"

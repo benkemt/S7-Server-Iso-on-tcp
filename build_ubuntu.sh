@@ -11,8 +11,9 @@ echo "========================================"
 echo ""
 
 # Check if running on Linux
-if [[ "$OSTYPE" != "linux-gnu"* ]]; then
-    echo "ERROR: This script is for Linux/Ubuntu only"
+if [[ "$(uname -s)" != "Linux" ]]; then
+    echo "ERROR: This script is for Linux only"
+    echo "Detected OS: $(uname -s)"
     exit 1
 fi
 
