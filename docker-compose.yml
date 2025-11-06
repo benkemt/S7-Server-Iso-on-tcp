@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  # Node-RED running in Docker container
+  nodered:
+    image: nodered/node-red:latest
+    container_name: s7server-nodered
+    restart: unless-stopped
+    ports:
+      - "1880:1880"
+    volumes:
+      - node_red_data:/data
+    environment:
+      - TZ=Europe/Berlin
+    networks:
+      - s7network
+    # Allow container to access Windows host
+    extra_hosts:
+      # This allows the container to reach the Windows host
+      - "host.docker.internal:host-gateway"
+    # Install S7 node automatically on first run
+    command: >
+      sh -c "npm install --prefix /data node-red-contrib-s7 && npm start"
+
+volumes:
+  node_red_data:
+    name: s7server_node_red_data
+
+networks:
+  s7network:
+    driver: bridge
