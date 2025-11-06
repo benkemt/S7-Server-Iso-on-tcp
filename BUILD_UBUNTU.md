@@ -29,6 +29,8 @@ If you have access to download from SourceForge:
 1. **Download Snap7 library**:
    ```bash
    cd /tmp
+   # Check http://snap7.sourceforge.net/ for the latest version
+   # As of this writing, 1.4.2 is the latest stable release
    wget http://sourceforge.net/projects/snap7/files/1.4.2/snap7-full-1.4.2.tar.gz
    ```
 
@@ -367,7 +369,9 @@ sudo S7Server
 
 ## Docker Support
 
-You can also run S7Server in a Docker container. See `DOCKER_UBUNTU.md` for instructions on building a containerized Ubuntu version.
+You can also run S7Server in a Docker container on Linux. This can simplify deployment and isolate the server in a container environment.
+
+For Docker setup on Windows with Node-RED, see [DOCKER_SETUP.md](DOCKER_SETUP.md).
 
 ## Development
 

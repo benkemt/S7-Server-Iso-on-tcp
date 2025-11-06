@@ -92,7 +92,10 @@ if [ "$ARCH" = "x86_64" ]; then
     MAKEFILE="x86_64_linux.mk"
 elif [ "$ARCH" = "i686" ] || [ "$ARCH" = "i386" ]; then
     MAKEFILE="i386_linux.mk"
-elif [[ "$ARCH" == arm* ]] || [[ "$ARCH" == aarch64 ]]; then
+elif [ "$ARCH" = "armv7l" ] || [[ "$ARCH" == armv7* ]]; then
+    MAKEFILE="arm_v7_linux.mk"
+elif [ "$ARCH" = "aarch64" ]; then
+    # Note: ARM64 uses the same makefile as ARMv7 in Snap7
     MAKEFILE="arm_v7_linux.mk"
 else
     echo "WARNING: Unknown architecture $ARCH, trying x86_64_linux.mk"
@@ -116,13 +119,21 @@ DEST_DIR="$PROJECT_DIR/$SNAP7_DIR"
 # Copy header file
 cp "$TEMP_DIR/$SNAP7_SRC/release/Wrappers/c-cpp/snap7.h" "$DEST_DIR/"
 
-# Copy library file
+# Copy library file - detect architecture-specific directory
 if [ "$ARCH" = "x86_64" ]; then
     LIB_DIR="$TEMP_DIR/$SNAP7_SRC/build/bin/x86_64-linux"
 elif [ "$ARCH" = "i686" ] || [ "$ARCH" = "i386" ]; then
     LIB_DIR="$TEMP_DIR/$SNAP7_SRC/build/bin/i386-linux"
-else
+elif [ "$ARCH" = "armv7l" ] || [[ "$ARCH" == armv7* ]] || [ "$ARCH" = "aarch64" ]; then
     LIB_DIR="$TEMP_DIR/$SNAP7_SRC/build/bin/arm_v7-linux"
+else
+    # Try to detect the actual build directory
+    LIB_DIR=$(find "$TEMP_DIR/$SNAP7_SRC/build/bin" -maxdepth 1 -type d -name "*-linux" | head -1)
+    if [ -z "$LIB_DIR" ]; then
+        echo "ERROR: Could not find Snap7 build output directory"
+        echo "Please manually copy libsnap7.so from snap7-full-x.x.x/build/bin/ to S7Server/snap7/"
+        exit 1
+    fi
 fi
 
 cp "$LIB_DIR/libsnap7.so" "$DEST_DIR/"

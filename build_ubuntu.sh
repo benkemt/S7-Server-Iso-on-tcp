@@ -62,7 +62,8 @@ if [ ! -f "$SNAP7_LIB_SO" ] && [ ! -f "$SNAP7_LIB_A" ]; then
     echo "  - $SNAP7_LIB_SO"
     echo "  - $SNAP7_LIB_A"
     echo ""
-    echo "Please download or build Snap7 library"
+    echo "The library location depends on your system architecture."
+    echo "Please download or build Snap7 library for your platform."
     echo "Run ./setup_snap7_linux.sh to build from source"
     exit 1
 fi
