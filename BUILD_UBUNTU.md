@@ -68,7 +68,31 @@ If you have manually downloaded the Snap7 archive:
    ./build_ubuntu.sh
    ```
 
-### Method 3: Manual Build with CMake
+### Method 3: Using Make
+
+If you prefer using make:
+
+1. **Ensure Snap7 files are in place** (see Method 1 or 2 above)
+
+2. **Build using make**:
+   ```bash
+   make
+   ```
+
+   Or for debug build:
+   ```bash
+   make debug
+   ```
+
+   Other make targets:
+   ```bash
+   make clean      # Clean build artifacts
+   make test       # Test the build
+   make install    # Install system-wide (requires sudo)
+   make help       # Show all available targets
+   ```
+
+### Method 4: Manual Build with CMake
 
 If you prefer manual steps:
 
