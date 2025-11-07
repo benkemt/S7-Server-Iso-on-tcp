@@ -28,64 +28,64 @@ void S7API EventCallback(void* usrPtr, PSrvEvent PEvent, int Size) {
     // Log server events
     std::string EventText;
     bool shouldLog = true;
-    
-  switch (PEvent->EvtCode) {
-        case evcServerStarted:
-   EventText = "Server started";
- break;
-  case evcServerStopped:
-     EventText = "Server stopped";
-          break;
-  case evcClientAdded:
-     EventText = "Client connected";
-            break;
-        case evcClientDisconnected:
-      EventText = "Client disconnected";
-            break;
-        case evcPDUincoming:
-  EventText = "PDU incoming";
-       break;
-        case evcDataRead:
-    // Uncomment to hide frequent data read events
-            // shouldLog = false;
-   EventText = "Data read";
-       break;
- case evcDataWrite:
-     EventText = "Data write";
-break;
-        case evcNegotiatePDU:
-            EventText = "Negotiate PDU";
-            break;
-        case evcReadSZL:
-          EventText = "Read SZL";
-            break;
-        case evcClock:
-          EventText = "Clock";
-     break;
-        case evcUpload:
-      EventText = "Upload";
-    break;
-        case evcDownload:
-       EventText = "Download";
-            break;
-  case evcDirectory:
-       EventText = "Directory";
-       break;
-        case evcSecurity:
-            EventText = "Security";
-      break;
-  case evcControl:
-         EventText = "Control";
-       break;
-        default:
-     // Only log truly unknown events
-    if (PEvent->EvtCode != 0) {
-  EventText = "Other event";
-       } else {
-                return; // Skip logging null events
-   }
-      break;
-    }
+
+    switch (PEvent->EvtCode) {
+		case evcServerStarted:
+			EventText = "Server started";
+			break;
+		case evcServerStopped:
+			EventText = "Server stopped";
+			break;
+		case evcClientAdded:
+			EventText = "Client connected";
+			break;
+		case evcClientDisconnected:
+			EventText = "Client disconnected";
+			break;
+		case evcPDUincoming:
+			EventText = "PDU incoming";
+			break;
+		case evcDataRead:
+			// Uncomment to hide frequent data read events
+			// shouldLog = false;
+			EventText = "Data read";
+			break;
+		case evcDataWrite:
+			EventText = "Data write";
+			break;
+		case evcNegotiatePDU:
+			EventText = "Negotiate PDU";
+			break;
+		case evcReadSZL:
+			EventText = "Read SZL";
+			break;
+		case evcClock:
+			EventText = "Clock";
+			break;
+		case evcUpload:
+			EventText = "Upload";
+			break;
+		case evcDownload:
+			EventText = "Download";
+			break;
+		case evcDirectory:
+			EventText = "Directory";
+			break;
+		case evcSecurity:
+			EventText = "Security";
+			break;
+		case evcControl:
+			EventText = "Control";
+			break;
+		default:
+		// Only log truly unknown events
+			if (PEvent->EvtCode != 0) {
+				EventText = "Other event";
+			} else {
+				return; // Skip logging null events
+			}
+			break;
+		}
     
     if (shouldLog) {
         std::cout << "[EVENT] " << EventText << " (Code: " << PEvent->EvtCode << ")" << std::endl;
@@ -137,7 +137,7 @@ void DisplayConfig() {
     std::cout << "Protocol: ISO-on-TCP" << std::endl;
     std::cout << "Port: 102" << std::endl;
     std::cout << "Data Blocks:" << std::endl;
-  std::cout << "  - DB1: 256 bytes (General purpose)" << std::endl;
+	std::cout << "  - DB1: 256 bytes (General purpose)" << std::endl;
     std::cout << "  - DB2: 512 bytes (Extended data)" << std::endl;
     std::cout << "  - DB3: 128 bytes (Test data)" << std::endl;
     std::cout << "Inputs (I):  256 bytes" << std::endl;
@@ -150,18 +150,18 @@ void DisplayConfig() {
 
 // Display server status
 void DisplayStatus(S7Object Server) {
-    int ServerStatus, CpuStatus, ClientsCount;
-    int Result = Srv_GetStatus(Server, &ServerStatus, &CpuStatus, &ClientsCount);
-    
-    if (Result == 0) {
-   std::cout << "Server Status: " << (ServerStatus == 1 ? "RUNNING" : "STOPPED") << std::endl;
-    std::cout << "Connected Clients: " << ClientsCount << std::endl;
-    }
+	int ServerStatus, CpuStatus, ClientsCount;
+	int Result = Srv_GetStatus(Server, &ServerStatus, &CpuStatus, &ClientsCount);
+
+	if (Result == 0) {
+		std::cout << "Server Status: " << (ServerStatus == 1 ? "RUNNING" : "STOPPED") << std::endl;
+		std::cout << "Connected Clients: " << ClientsCount << std::endl;
+	}
 }
 
 int main() {
     std::cout << "========================================" << std::endl;
-  std::cout << "S7 Server ISO-on-TCP (Snap7)" << std::endl;
+	std::cout << "S7 Server ISO-on-TCP (Snap7)" << std::endl;
     std::cout << "For Node-RED Testing" << std::endl;
     std::cout << "========================================\n" << std::endl;
 
@@ -201,7 +201,7 @@ int main() {
     // Flags/Merkers (256 bytes)
     byte* MArea = new byte[256]();
     
- // Timers (512 bytes)
+	// Timers (512 bytes)
     byte* TArea = new byte[512]();
     
     // Counters (512 bytes)
@@ -222,7 +222,7 @@ int main() {
     SetReal(DB1, 24, 3.14159f);   // DB1.DBD24 = 3.14159 (Pi approximation)
     
     // Initialize some test data in DB2
-DB2[0] = 1;       // Test value at DB2.DBB0 (BYTE)
+	DB2[0] = 1;       // Test value at DB2.DBB0 (BYTE)
     DB2[1] = 2;       // Test value at DB2.DBB1 (BYTE)
     DB2[2] = 3;       // Test value at DB2.DBB2 (BYTE)
     
@@ -233,7 +233,7 @@ DB2[0] = 1;       // Test value at DB2.DBB0 (BYTE)
     std::cout << "Initializing memory areas..." << std::endl;
 
     // Register memory areas with the server
- int Result;
+	int Result;
     bool registrationFailed = false;
     
     Result = Srv_RegisterArea(S7Server, srvAreaDB, 1, DB1, 256);
@@ -246,39 +246,39 @@ DB2[0] = 1;       // Test value at DB2.DBB0 (BYTE)
         Result = Srv_RegisterArea(S7Server, srvAreaDB, 2, DB2, 512);
         if (Result != 0) {
             std::cerr << "ERROR: Failed to register DB2!" << std::endl;
-       registrationFailed = true;
+			registrationFailed = true;
         }
     }
     
     if (!registrationFailed) {
         Result = Srv_RegisterArea(S7Server, srvAreaDB, 3, DB3, 128);
         if (Result != 0) {
-   std::cerr << "ERROR: Failed to register DB3!" << std::endl;
-  registrationFailed = true;
-   }
+			std::cerr << "ERROR: Failed to register DB3!" << std::endl;
+			registrationFailed = true;
+		}
     }
     
     if (!registrationFailed) {
         Result = Srv_RegisterArea(S7Server, srvAreaPE, 0, IArea, 256);
         if (Result != 0) {
-  std::cerr << "ERROR: Failed to register Input area!" << std::endl;
-      registrationFailed = true;
+			std::cerr << "ERROR: Failed to register Input area!" << std::endl;
+			registrationFailed = true;
         }
     }
     
     if (!registrationFailed) {
-   Result = Srv_RegisterArea(S7Server, srvAreaPA, 0, QArea, 256);
+		Result = Srv_RegisterArea(S7Server, srvAreaPA, 0, QArea, 256);
         if (Result != 0) {
-   std::cerr << "ERROR: Failed to register Output area!" << std::endl;
+			std::cerr << "ERROR: Failed to register Output area!" << std::endl;
             registrationFailed = true;
         }
     }
     
     if (!registrationFailed) {
-  Result = Srv_RegisterArea(S7Server, srvAreaMK, 0, MArea, 256);
+		Result = Srv_RegisterArea(S7Server, srvAreaMK, 0, MArea, 256);
         if (Result != 0) {
-       std::cerr << "ERROR: Failed to register Flags area!" << std::endl;
-   registrationFailed = true;
+			std::cerr << "ERROR: Failed to register Flags area!" << std::endl;
+			registrationFailed = true;
         }
     }
     
@@ -286,30 +286,30 @@ DB2[0] = 1;       // Test value at DB2.DBB0 (BYTE)
         Result = Srv_RegisterArea(S7Server, srvAreaTM, 0, TArea, 512);
         if (Result != 0) {
             std::cerr << "ERROR: Failed to register Timers area!" << std::endl;
-       registrationFailed = true;
+			registrationFailed = true;
         }
     }
     
     if (!registrationFailed) {
-     Result = Srv_RegisterArea(S7Server, srvAreaCT, 0, CArea, 512);
+		Result = Srv_RegisterArea(S7Server, srvAreaCT, 0, CArea, 512);
         if (Result != 0) {
-    std::cerr << "ERROR: Failed to register Counters area!" << std::endl;
+			std::cerr << "ERROR: Failed to register Counters area!" << std::endl;
             registrationFailed = true;
         }
 }
 
     if (registrationFailed) {
         // Cleanup on failure
-    Srv_Destroy(&S7Server);
-      delete[] DB1;
-        delete[] DB2;
-        delete[] DB3;
-        delete[] IArea;
- delete[] QArea;
-        delete[] MArea;
-        delete[] TArea;
-      delete[] CArea;
-        return 1;
+		Srv_Destroy(&S7Server);
+		delete[] DB1;
+		delete[] DB2;
+		delete[] DB3;
+		delete[] IArea;
+		delete[] QArea;
+		delete[] MArea;
+		delete[] TArea;
+		delete[] CArea;
+		return 1;
     }
 
     std::cout << "Memory areas registered successfully." << std::endl;
@@ -356,19 +356,19 @@ DB2[0] = 1;       // Test value at DB2.DBB0 (BYTE)
         
         // Cleanup
     Srv_Destroy(&S7Server);
-        delete[] DB1;
-        delete[] DB2;
- delete[] DB3;
- delete[] IArea;
-   delete[] QArea;
-        delete[] MArea;
-    delete[] TArea;
-        delete[] CArea;
-    return 1;
+		delete[] DB1;
+		delete[] DB2;
+		delete[] DB3;
+		delete[] IArea;
+		delete[] QArea;
+		delete[] MArea;
+		delete[] TArea;
+		delete[] CArea;
+		return 1;
     }
 
-  std::cout << "\n*** Server started successfully! ***\n" << std::endl;
- DisplayConfig();
+	std::cout << "\n*** Server started successfully! ***\n" << std::endl;
+	DisplayConfig();
     
     std::cout << "Server is running. Press Ctrl+C to stop.\n" << std::endl;
 
@@ -378,11 +378,11 @@ DB2[0] = 1;       // Test value at DB2.DBB0 (BYTE)
     
     while (ServerRunning) {
         // Display status every 30 seconds
-        auto currentTime = std::chrono::steady_clock::now();
-      if (currentTime - lastStatusTime >= statusInterval) {
-        DisplayStatus(S7Server);
-            lastStatusTime = currentTime;
- }
+		auto currentTime = std::chrono::steady_clock::now();
+		if (currentTime - lastStatusTime >= statusInterval) {
+		DisplayStatus(S7Server);
+		    lastStatusTime = currentTime;
+		}
         
         // Sleep for 1 second
         std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -390,7 +390,7 @@ DB2[0] = 1;       // Test value at DB2.DBB0 (BYTE)
 
     // Shutdown
     std::cout << "\nStopping server..." << std::endl;
- Srv_Stop(S7Server);
+	Srv_Stop(S7Server);
     
     std::cout << "Cleaning up resources..." << std::endl;
     Srv_Destroy(&S7Server);
@@ -405,6 +405,6 @@ DB2[0] = 1;       // Test value at DB2.DBB0 (BYTE)
     delete[] TArea;
     delete[] CArea;
 
-  std::cout << "Server stopped successfully. Goodbye!" << std::endl;
+	std::cout << "Server stopped successfully. Goodbye!" << std::endl;
     return 0;
 }
