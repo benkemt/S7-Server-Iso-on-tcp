@@ -24,6 +24,9 @@
 S7Object S7Server = 0;
 bool ServerRunning = true;
 
+// Constants
+const int REAL_SIZE = 4;  // S7 REAL data type size in bytes
+
 // Structure to hold CSV configuration entry
 struct CSVConfigEntry {
     int dbNumber;
@@ -283,7 +286,7 @@ std::vector<DataBlock> CreateDataBlocksFromCSV(const std::vector<CSVConfigEntry>
     
     // First pass: determine required size for each DB
     for (const auto& entry : entries) {
-        int requiredSize = entry.offset + 4; // REAL is 4 bytes
+        int requiredSize = entry.offset + REAL_SIZE;
         if (dbSizes.find(entry.dbNumber) == dbSizes.end()) {
             dbSizes[entry.dbNumber] = requiredSize;
         } else {
@@ -292,6 +295,7 @@ std::vector<DataBlock> CreateDataBlocksFromCSV(const std::vector<CSVConfigEntry>
     }
     
     // Second pass: allocate and initialize Data Blocks
+    std::map<int, DataBlock*> dbMap;  // For fast lookup during initialization
     for (const auto& pair : dbSizes) {
         DataBlock db;
         db.number = pair.first;
@@ -300,20 +304,19 @@ std::vector<DataBlock> CreateDataBlocksFromCSV(const std::vector<CSVConfigEntry>
         
         std::cout << "Allocated DB" << db.number << ": " << db.size << " bytes" << std::endl;
         dataBlocks.push_back(db);
+        dbMap[db.number] = &dataBlocks.back();
     }
     
-    // Third pass: initialize values from CSV
+    // Third pass: initialize values from CSV using map for fast lookup
     for (const auto& entry : entries) {
-        // Find the corresponding DataBlock
-        for (auto& db : dataBlocks) {
-            if (db.number == entry.dbNumber) {
-                float value = GenerateRandomValue(entry.minValue, entry.maxValue);
-                SetReal(db.data, entry.offset, value);
-                std::cout << "  DB" << db.number << ".REAL" << entry.offset 
-                          << " = " << value << " (range: " << entry.minValue 
-                          << " to " << entry.maxValue << ")" << std::endl;
-                break;
-            }
+        auto it = dbMap.find(entry.dbNumber);
+        if (it != dbMap.end()) {
+            DataBlock* db = it->second;
+            float value = GenerateRandomValue(entry.minValue, entry.maxValue);
+            SetReal(db->data, entry.offset, value);
+            std::cout << "  DB" << db->number << ".REAL" << entry.offset 
+                      << " = " << value << " (range: " << entry.minValue 
+                      << " to " << entry.maxValue << ")" << std::endl;
         }
     }
     
@@ -350,6 +353,19 @@ void DisplayStatus(S7Object Server) {
 		std::cout << "Server Status: " << (ServerStatus == 1 ? "RUNNING" : "STOPPED") << std::endl;
 		std::cout << "Connected Clients: " << ClientsCount << std::endl;
 	}
+}
+
+// Helper function to cleanup allocated memory
+void CleanupResources(std::vector<DataBlock>& dataBlocks, byte* IArea, byte* QArea, 
+                     byte* MArea, byte* TArea, byte* CArea) {
+    for (auto& db : dataBlocks) {
+        delete[] db.data;
+    }
+    delete[] IArea;
+    delete[] QArea;
+    delete[] MArea;
+    delete[] TArea;
+    delete[] CArea;
 }
 
 int main() {
@@ -463,14 +479,7 @@ int main() {
     if (registrationFailed) {
         // Cleanup on failure
 		Srv_Destroy(&S7Server);
-		for (auto& db : dataBlocks) {
-		    delete[] db.data;
-		}
-		delete[] IArea;
-		delete[] QArea;
-		delete[] MArea;
-		delete[] TArea;
-		delete[] CArea;
+		CleanupResources(dataBlocks, IArea, QArea, MArea, TArea, CArea);
 		return 1;
     }
 
@@ -518,14 +527,7 @@ int main() {
         
         // Cleanup
     Srv_Destroy(&S7Server);
-		for (auto& db : dataBlocks) {
-		    delete[] db.data;
-		}
-		delete[] IArea;
-		delete[] QArea;
-		delete[] MArea;
-		delete[] TArea;
-		delete[] CArea;
+		CleanupResources(dataBlocks, IArea, QArea, MArea, TArea, CArea);
 		return 1;
     }
 
@@ -558,14 +560,7 @@ int main() {
     Srv_Destroy(&S7Server);
     
     // Free allocated memory
-    for (auto& db : dataBlocks) {
-        delete[] db.data;
-    }
-    delete[] IArea;
-    delete[] QArea;
-    delete[] MArea;
-    delete[] TArea;
-    delete[] CArea;
+    CleanupResources(dataBlocks, IArea, QArea, MArea, TArea, CArea);
 
 	std::cout << "Server stopped successfully. Goodbye!" << std::endl;
     return 0;
