@@ -39,12 +39,24 @@ The server provides the following memory areas:
 
 The server initializes with the following test data:
 
+**BYTE values:**
 - **DB1.DBB0**: 42
 - **DB1.DBB1**: 100
 - **DB1.DBB2**: 255 (0xFF)
+- **DB1.DBB3**: 0
 - **DB2.DBB0**: 1
 - **DB2.DBB1**: 2
 - **DB2.DBB2**: 3
+
+**REAL (floating-point) values:**
+- **DB1.DBD4**: 23.5 (Temperature in °C)
+- **DB1.DBD8**: 101.325 (Pressure in kPa)
+- **DB1.DBD12**: 15.75 (Flow rate in L/min)
+- **DB1.DBD16**: -10.5 (Negative value test)
+- **DB1.DBD20**: 0.0 (Zero value test)
+- **DB1.DBD24**: 3.14159 (Pi approximation)
+- **DB2.DBD4**: 100.0 (Percentage)
+- **DB2.DBD8**: 1000.5 (Large value test)
 
 ## Setup Instructions
 
@@ -162,14 +174,27 @@ npm install node-red-contrib-s7
 
 ### Read/Write Examples
 
-**Read from DB1:**
-- Variable: `DB1,INT0` (reads integer at byte 0)
-- Variable: `DB1,BYTE1` (reads byte at byte 1)
-- Variable: `DB1,REAL4` (reads real/float at byte 4)
+**Read BYTE values from DB1:**
+- Variable: `DB1,BYTE0` (reads byte at byte 0, returns 42)
+- Variable: `DB1,BYTE1` (reads byte at byte 1, returns 100)
+- Variable: `DB1,BYTE2` (reads byte at byte 2, returns 255)
+
+**Read REAL (floating-point) values from DB1:**
+- Variable: `DB1,REAL4` (reads float at byte 4, returns 23.5)
+- Variable: `DB1,REAL8` (reads float at byte 8, returns 101.325)
+- Variable: `DB1,REAL12` (reads float at byte 12, returns 15.75)
+- Variable: `DB1,REAL16` (reads float at byte 16, returns -10.5)
+- Variable: `DB1,REAL20` (reads float at byte 20, returns 0.0)
+- Variable: `DB1,REAL24` (reads float at byte 24, returns 3.14159)
+
+**Read REAL values from DB2:**
+- Variable: `DB2,REAL4` (reads float at byte 4, returns 100.0)
+- Variable: `DB2,REAL8` (reads float at byte 8, returns 1000.5)
 
 **Write to DB1:**
 - Variable: `DB1,INT0` with value
 - Variable: `DB1,BYTE2` with value
+- Variable: `DB1,REAL4` with floating-point value (e.g., 25.5)
 
 **Read Inputs/Outputs:**
 - `I0.0` - Input bit 0.0

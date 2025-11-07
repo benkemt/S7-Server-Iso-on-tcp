@@ -114,6 +114,19 @@ int S7API RWAreaCallback(void* usrPtr, int Sender, int Operation, PS7Tag PTag, v
     return 0; // Success
 }
 
+// Helper function to convert float to S7 REAL format (big-endian IEEE 754)
+void SetReal(byte* buffer, int offset, float value) {
+    // Convert float to bytes
+    byte* floatBytes = reinterpret_cast<byte*>(&value);
+    
+    // S7 uses big-endian byte order, but most systems (Windows, x86/x64) use little-endian
+    // We need to reverse the byte order
+    buffer[offset + 0] = floatBytes[3];  // Most significant byte
+    buffer[offset + 1] = floatBytes[2];
+    buffer[offset + 2] = floatBytes[1];
+    buffer[offset + 3] = floatBytes[0];  // Least significant byte
+}
+
 // Display server configuration
 void DisplayConfig() {
     std::cout << "\n========================================" << std::endl;
@@ -193,14 +206,27 @@ int main() {
     byte* CArea = new byte[512]();
 
     // Initialize some test data in DB1
-    DB1[0] = 42;      // Test value at DB1.DBB0
-    DB1[1] = 100; // Test value at DB1.DBB1
-    DB1[2] = 0xFF;    // Test value at DB1.DBB2
+    DB1[0] = 42;      // Test value at DB1.DBB0 (BYTE)
+    DB1[1] = 100; // Test value at DB1.DBB1 (BYTE)
+    DB1[2] = 0xFF;    // Test value at DB1.DBB2 (BYTE)
+    DB1[3] = 0;       // Test value at DB1.DBB3 (BYTE)
+    
+    // Initialize REAL (floating-point) test values
+    SetReal(DB1, 4, 23.5f);       // DB1.DBD4 = 23.5 (Temperature in °C)
+    SetReal(DB1, 8, 101.325f);    // DB1.DBD8 = 101.325 (Pressure in kPa)
+    SetReal(DB1, 12, 15.75f);     // DB1.DBD12 = 15.75 (Flow rate in L/min)
+    SetReal(DB1, 16, -10.5f);     // DB1.DBD16 = -10.5 (Negative value test)
+    SetReal(DB1, 20, 0.0f);       // DB1.DBD20 = 0.0 (Zero value test)
+    SetReal(DB1, 24, 3.14159f);   // DB1.DBD24 = 3.14159 (Pi approximation)
     
     // Initialize some test data in DB2
-DB2[0] = 1;       // Test value at DB2.DBB0
-    DB2[1] = 2;       // Test value at DB2.DBB1
-    DB2[2] = 3;       // Test value at DB2.DBB2
+DB2[0] = 1;       // Test value at DB2.DBB0 (BYTE)
+    DB2[1] = 2;       // Test value at DB2.DBB1 (BYTE)
+    DB2[2] = 3;       // Test value at DB2.DBB2 (BYTE)
+    
+    // Initialize REAL values in DB2
+    SetReal(DB2, 4, 100.0f);      // DB2.DBD4 = 100.0 (Percentage)
+    SetReal(DB2, 8, 1000.5f);     // DB2.DBD8 = 1000.5 (Large value test)
   
     std::cout << "Initializing memory areas..." << std::endl;
 
