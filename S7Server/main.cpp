@@ -115,11 +115,13 @@ int S7API RWAreaCallback(void* usrPtr, int Sender, int Operation, PS7Tag PTag, v
 }
 
 // Helper function to convert float to S7 REAL format (big-endian IEEE 754)
+// Note: This function assumes the host system uses little-endian byte order (x86/x64 Windows).
+// The caller is responsible for ensuring the buffer has sufficient space (offset + 4 bytes).
 void SetReal(byte* buffer, int offset, float value) {
     // Convert float to bytes
     byte* floatBytes = reinterpret_cast<byte*>(&value);
     
-    // S7 uses big-endian byte order, but most systems (Windows, x86/x64) use little-endian
+    // S7 uses big-endian byte order, but Windows x86/x64 systems use little-endian
     // We need to reverse the byte order
     buffer[offset + 0] = floatBytes[3];  // Most significant byte
     buffer[offset + 1] = floatBytes[2];
