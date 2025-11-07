@@ -294,8 +294,8 @@ std::vector<DataBlock> CreateDataBlocksFromCSV(const std::vector<CSVConfigEntry>
         }
     }
     
-    // Second pass: allocate and initialize Data Blocks
-    std::map<int, DataBlock*> dbMap;  // For fast lookup during initialization
+    // Second pass: allocate Data Blocks and reserve capacity to prevent reallocation
+    dataBlocks.reserve(dbSizes.size());  // Reserve capacity to prevent pointer invalidation
     for (const auto& pair : dbSizes) {
         DataBlock db;
         db.number = pair.first;
@@ -304,7 +304,12 @@ std::vector<DataBlock> CreateDataBlocksFromCSV(const std::vector<CSVConfigEntry>
         
         std::cout << "Allocated DB" << db.number << ": " << db.size << " bytes" << std::endl;
         dataBlocks.push_back(db);
-        dbMap[db.number] = &dataBlocks.back();
+    }
+    
+    // Build map for fast lookup (safe now that vector won't reallocate)
+    std::map<int, DataBlock*> dbMap;
+    for (auto& db : dataBlocks) {
+        dbMap[db.number] = &db;
     }
     
     // Third pass: initialize values from CSV using map for fast lookup
