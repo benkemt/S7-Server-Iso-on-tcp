@@ -7,15 +7,39 @@
  */
 
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <map>
 #include <cstring>
 #include <csignal>
 #include <thread>
 #include <chrono>
+#include <random>
+#include <algorithm>
 #include "snap7.h"
 
 // Global server instance
 S7Object S7Server = 0;
 bool ServerRunning = true;
+
+// Structure to hold CSV configuration entry
+struct CSVConfigEntry {
+    int dbNumber;
+    int offset;
+    float minValue;
+    float maxValue;
+    float echelon;
+    int cycletime;
+};
+
+// Structure to hold Data Block information
+struct DataBlock {
+    int number;
+    int size;
+    byte* data;
+};
 
 // Signal handler for graceful shutdown
 void SignalHandler(int signal) {
@@ -129,17 +153,167 @@ void SetReal(byte* buffer, int offset, float value) {
     buffer[offset + 3] = floatBytes[0];  // Least significant byte
 }
 
+// Parse CSV tag format "DB<number>,REAL<offset>"
+bool ParseTag(const std::string& tag, int& dbNumber, int& offset) {
+    // Remove quotes if present
+    std::string cleanTag = tag;
+    cleanTag.erase(std::remove(cleanTag.begin(), cleanTag.end(), '\"'), cleanTag.end());
+    
+    // Find DB and REAL positions
+    size_t dbPos = cleanTag.find("DB");
+    size_t realPos = cleanTag.find("REAL");
+    
+    if (dbPos == std::string::npos || realPos == std::string::npos) {
+        return false;
+    }
+    
+    // Extract DB number (between "DB" and ",")
+    size_t commaPos = cleanTag.find(',');
+    if (commaPos == std::string::npos) {
+        return false;
+    }
+    
+    try {
+        std::string dbNumStr = cleanTag.substr(dbPos + 2, commaPos - dbPos - 2);
+        dbNumber = std::stoi(dbNumStr);
+        
+        // Extract offset (after "REAL")
+        std::string offsetStr = cleanTag.substr(realPos + 4);
+        offset = std::stoi(offsetStr);
+        
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+// Load CSV configuration file
+std::vector<CSVConfigEntry> LoadCSVConfig(const std::string& filename) {
+    std::vector<CSVConfigEntry> entries;
+    std::ifstream file(filename);
+    
+    if (!file.is_open()) {
+        std::cerr << "WARNING: Could not open CSV file '" << filename << "'. Using default configuration." << std::endl;
+        return entries;
+    }
+    
+    std::string line;
+    bool firstLine = true;
+    
+    while (std::getline(file, line)) {
+        // Skip header line
+        if (firstLine) {
+            firstLine = false;
+            continue;
+        }
+        
+        // Skip empty lines
+        if (line.empty() || line.find_first_not_of(" \t\r\n") == std::string::npos) {
+            continue;
+        }
+        
+        // Parse CSV line
+        std::stringstream ss(line);
+        std::string tag, minStr, maxStr, echelonStr, cycletimeStr;
+        
+        if (std::getline(ss, tag, ',') &&
+            std::getline(ss, minStr, ',') &&
+            std::getline(ss, maxStr, ',') &&
+            std::getline(ss, echelonStr, ',') &&
+            std::getline(ss, cycletimeStr, ',')) {
+            
+            CSVConfigEntry entry;
+            
+            // Parse tag to get DB number and offset
+            if (!ParseTag(tag, entry.dbNumber, entry.offset)) {
+                std::cerr << "WARNING: Failed to parse tag: " << tag << std::endl;
+                continue;
+            }
+            
+            try {
+                entry.minValue = std::stof(minStr);
+                entry.maxValue = std::stof(maxStr);
+                entry.echelon = std::stof(echelonStr);
+                entry.cycletime = std::stoi(cycletimeStr);
+                
+                entries.push_back(entry);
+            } catch (...) {
+                std::cerr << "WARNING: Failed to parse values for tag: " << tag << std::endl;
+                continue;
+            }
+        }
+    }
+    
+    file.close();
+    std::cout << "Loaded " << entries.size() << " entries from CSV configuration." << std::endl;
+    return entries;
+}
+
+// Generate random float value within range
+float GenerateRandomValue(float minValue, float maxValue) {
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> dis(minValue, maxValue);
+    return dis(gen);
+}
+
+// Create and initialize Data Blocks from CSV configuration
+std::vector<DataBlock> CreateDataBlocksFromCSV(const std::vector<CSVConfigEntry>& entries) {
+    std::map<int, int> dbSizes; // DB number -> required size
+    std::vector<DataBlock> dataBlocks;
+    
+    // First pass: determine required size for each DB
+    for (const auto& entry : entries) {
+        int requiredSize = entry.offset + 4; // REAL is 4 bytes
+        if (dbSizes.find(entry.dbNumber) == dbSizes.end()) {
+            dbSizes[entry.dbNumber] = requiredSize;
+        } else {
+            dbSizes[entry.dbNumber] = std::max(dbSizes[entry.dbNumber], requiredSize);
+        }
+    }
+    
+    // Second pass: allocate and initialize Data Blocks
+    for (const auto& pair : dbSizes) {
+        DataBlock db;
+        db.number = pair.first;
+        db.size = pair.second;
+        db.data = new byte[db.size]();
+        
+        std::cout << "Allocated DB" << db.number << ": " << db.size << " bytes" << std::endl;
+        dataBlocks.push_back(db);
+    }
+    
+    // Third pass: initialize values from CSV
+    for (const auto& entry : entries) {
+        // Find the corresponding DataBlock
+        for (auto& db : dataBlocks) {
+            if (db.number == entry.dbNumber) {
+                float value = GenerateRandomValue(entry.minValue, entry.maxValue);
+                SetReal(db.data, entry.offset, value);
+                std::cout << "  DB" << db.number << ".REAL" << entry.offset 
+                          << " = " << value << " (range: " << entry.minValue 
+                          << " to " << entry.maxValue << ")" << std::endl;
+                break;
+            }
+        }
+    }
+    
+    return dataBlocks;
+}
+
 // Display server configuration
-void DisplayConfig() {
+void DisplayConfig(const std::vector<DataBlock>& dataBlocks) {
     std::cout << "\n========================================" << std::endl;
     std::cout << "S7 Server Configuration:" << std::endl;
     std::cout << "========================================" << std::endl;
     std::cout << "Protocol: ISO-on-TCP" << std::endl;
     std::cout << "Port: 102" << std::endl;
     std::cout << "Data Blocks:" << std::endl;
-	std::cout << "  - DB1: 256 bytes (General purpose)" << std::endl;
-    std::cout << "  - DB2: 512 bytes (Extended data)" << std::endl;
-    std::cout << "  - DB3: 128 bytes (Test data)" << std::endl;
+    
+    for (const auto& db : dataBlocks) {
+        std::cout << "  - DB" << db.number << ": " << db.size << " bytes" << std::endl;
+    }
+    
     std::cout << "Inputs (I):  256 bytes" << std::endl;
     std::cout << "Outputs (Q): 256 bytes" << std::endl;
     std::cout << "Flags (M):   256 bytes" << std::endl;
@@ -182,16 +356,20 @@ int main() {
     // Srv_SetParam(S7Server, p_u16_LocalPort, &customPort);
     // std::cout << "NOTE: Using custom port 10102 (no admin privileges required)" << std::endl;
 
-    // Allocate memory areas for PLC simulation
-    // DB1 - Data Block 1 (256 bytes)
-    byte* DB1 = new byte[256]();
+    // Load CSV configuration
+    std::cout << "Loading CSV configuration from 'dresse.csv'..." << std::endl;
+    std::vector<CSVConfigEntry> csvConfig = LoadCSVConfig("dresse.csv");
     
-    // DB2 - Data Block 2 (512 bytes)
-    byte* DB2 = new byte[512]();
+    // Create and initialize Data Blocks from CSV
+    std::vector<DataBlock> dataBlocks;
+    if (!csvConfig.empty()) {
+        std::cout << "\nInitializing Data Blocks from CSV configuration..." << std::endl;
+        dataBlocks = CreateDataBlocksFromCSV(csvConfig);
+    } else {
+        std::cerr << "WARNING: No CSV configuration loaded. Server will start with minimal configuration." << std::endl;
+    }
     
-    // DB3 - Data Block 3 (128 bytes)
-    byte* DB3 = new byte[128]();
-    
+    // Allocate standard memory areas for PLC simulation
     // Inputs (256 bytes)
     byte* IArea = new byte[256]();
     
@@ -206,29 +384,6 @@ int main() {
     
     // Counters (512 bytes)
     byte* CArea = new byte[512]();
-
-    // Initialize some test data in DB1
-    DB1[0] = 42;      // Test value at DB1.DBB0 (BYTE)
-    DB1[1] = 100; // Test value at DB1.DBB1 (BYTE)
-    DB1[2] = 0xFF;    // Test value at DB1.DBB2 (BYTE)
-    DB1[3] = 0;       // Test value at DB1.DBB3 (BYTE)
-    
-    // Initialize REAL (floating-point) test values
-    SetReal(DB1, 4, 23.5f);       // DB1.DBD4 = 23.5 (Temperature in °C)
-    SetReal(DB1, 8, 101.325f);    // DB1.DBD8 = 101.325 (Pressure in kPa)
-    SetReal(DB1, 12, 15.75f);     // DB1.DBD12 = 15.75 (Flow rate in L/min)
-    SetReal(DB1, 16, -10.5f);     // DB1.DBD16 = -10.5 (Negative value test)
-    SetReal(DB1, 20, 0.0f);       // DB1.DBD20 = 0.0 (Zero value test)
-    SetReal(DB1, 24, 3.14159f);   // DB1.DBD24 = 3.14159 (Pi approximation)
-    
-    // Initialize some test data in DB2
-	DB2[0] = 1;       // Test value at DB2.DBB0 (BYTE)
-    DB2[1] = 2;       // Test value at DB2.DBB1 (BYTE)
-    DB2[2] = 3;       // Test value at DB2.DBB2 (BYTE)
-    
-    // Initialize REAL values in DB2
-    SetReal(DB2, 4, 100.0f);      // DB2.DBD4 = 100.0 (Percentage)
-    SetReal(DB2, 8, 1000.5f);     // DB2.DBD8 = 1000.5 (Large value test)
   
     std::cout << "Initializing memory areas..." << std::endl;
 
@@ -236,26 +391,14 @@ int main() {
 	int Result;
     bool registrationFailed = false;
     
-    Result = Srv_RegisterArea(S7Server, srvAreaDB, 1, DB1, 256);
-    if (Result != 0) {
-        std::cerr << "ERROR: Failed to register DB1!" << std::endl;
-        registrationFailed = true;
-  }
-    
-    if (!registrationFailed) {
-        Result = Srv_RegisterArea(S7Server, srvAreaDB, 2, DB2, 512);
+    // Register dynamically created Data Blocks
+    for (const auto& db : dataBlocks) {
+        Result = Srv_RegisterArea(S7Server, srvAreaDB, db.number, db.data, db.size);
         if (Result != 0) {
-            std::cerr << "ERROR: Failed to register DB2!" << std::endl;
-			registrationFailed = true;
+            std::cerr << "ERROR: Failed to register DB" << db.number << "!" << std::endl;
+            registrationFailed = true;
+            break;
         }
-    }
-    
-    if (!registrationFailed) {
-        Result = Srv_RegisterArea(S7Server, srvAreaDB, 3, DB3, 128);
-        if (Result != 0) {
-			std::cerr << "ERROR: Failed to register DB3!" << std::endl;
-			registrationFailed = true;
-		}
     }
     
     if (!registrationFailed) {
@@ -301,9 +444,9 @@ int main() {
     if (registrationFailed) {
         // Cleanup on failure
 		Srv_Destroy(&S7Server);
-		delete[] DB1;
-		delete[] DB2;
-		delete[] DB3;
+		for (auto& db : dataBlocks) {
+		    delete[] db.data;
+		}
 		delete[] IArea;
 		delete[] QArea;
 		delete[] MArea;
@@ -356,9 +499,9 @@ int main() {
         
         // Cleanup
     Srv_Destroy(&S7Server);
-		delete[] DB1;
-		delete[] DB2;
-		delete[] DB3;
+		for (auto& db : dataBlocks) {
+		    delete[] db.data;
+		}
 		delete[] IArea;
 		delete[] QArea;
 		delete[] MArea;
@@ -368,7 +511,7 @@ int main() {
     }
 
 	std::cout << "\n*** Server started successfully! ***\n" << std::endl;
-	DisplayConfig();
+	DisplayConfig(dataBlocks);
     
     std::cout << "Server is running. Press Ctrl+C to stop.\n" << std::endl;
 
@@ -396,9 +539,9 @@ int main() {
     Srv_Destroy(&S7Server);
     
     // Free allocated memory
-    delete[] DB1;
-    delete[] DB2;
-    delete[] DB3;
+    for (auto& db : dataBlocks) {
+        delete[] db.data;
+    }
     delete[] IArea;
     delete[] QArea;
     delete[] MArea;
