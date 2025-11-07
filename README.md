@@ -8,9 +8,10 @@ A Siemens S7 server implementation using ISO-on-TCP protocol with the Snap7 libr
 ## Features
 
 - **ISO-on-TCP Protocol**: Full implementation of Siemens S7 communication protocol
+- **CSV-Based Configuration**: Dynamic memory initialization using CSV files - no code changes needed
 - **Multiple Memory Areas**: Supports Data Blocks (DB), Inputs (I), Outputs (Q), Flags (M), Timers (T), and Counters (C)
 - **Real-time Monitoring**: Event callbacks for server operations, read/write operations
-- **Pre-configured Test Data**: Includes test data in Data Blocks for immediate testing
+- **Flexible Configuration**: Easy to customize memory layout and test values via CSV file
 - **Windows Compatible**: Built with Visual Studio 2022 for Windows systems
 
 ## Requirements
@@ -22,41 +23,65 @@ A Siemens S7 server implementation using ISO-on-TCP protocol with the Snap7 libr
 
 ## Memory Configuration
 
-The server provides the following memory areas:
+### CSV-Based Dynamic Configuration
+
+The server now uses a CSV-based configuration file (`dresse.csv`) to dynamically initialize Data Blocks. This allows you to modify the server's memory layout without changing code or recompiling.
+
+#### CSV Format
+
+The configuration file uses the following format:
+
+```csv
+tag,min,max,echelon,cycletime
+"DB101,REAL184",0,1800,0.5,2000
+"DB101,REAL14",0,1800,0.5,2000
+"DB151,REAL14",0,100,1,2000
+```
+
+#### CSV Fields
+
+| Field | Description |
+|-------|-------------|
+| **tag** | S7 address in format: `DB<number>,REAL<offset>` where REAL indicates a 4-byte float at the specified byte offset |
+| **min** | Minimum value for random initialization |
+| **max** | Maximum value for random initialization |
+| **echelon** | Step/increment value (reserved for future use) |
+| **cycletime** | Update interval in milliseconds (reserved for future use) |
+
+#### Example Configuration
+
+The default `dresse.csv` file configures 36 Data Blocks with 57 REAL values:
+
+- **DB101-DB105**: General purpose blocks with ranges 0-1800
+- **DB151-DB155**: Configuration blocks with range 0-100
+- **DB201-DB205**: Small value blocks with range 0-20
+- **DB251-DB255**: Percentage blocks with range 0-100
+- **DB301-DB309**: Process blocks with various ranges, including negative values (-50 to 50)
+- **DB352-DB358**: Status blocks with range 0-100
+
+Data Blocks are automatically sized based on the highest offset + 4 bytes (REAL size) defined in the CSV.
+
+### Standard Memory Areas
+
+In addition to the dynamically configured Data Blocks, the server provides:
 
 | Area | Type | Size | Description |
 |------|------|------|-------------|
-| DB1 | Data Block | 256 bytes | General purpose data block |
-| DB2 | Data Block | 512 bytes | Extended data block |
-| DB3 | Data Block | 128 bytes | Test data block |
 | I | Inputs | 256 bytes | Process input image |
 | Q | Outputs | 256 bytes | Process output image |
 | M | Flags/Merkers | 256 bytes | Flag memory |
 | T | Timers | 512 bytes | Timer area |
 | C | Counters | 512 bytes | Counter area |
 
-### Test Data
+### Customizing Configuration
 
-The server initializes with the following test data:
+To customize the server configuration:
 
-**BYTE values:**
-- **DB1.DBB0**: 42
-- **DB1.DBB1**: 100
-- **DB1.DBB2**: 255 (0xFF)
-- **DB1.DBB3**: 0
-- **DB2.DBB0**: 1
-- **DB2.DBB1**: 2
-- **DB2.DBB2**: 3
+1. Edit the `dresse.csv` file in the project root directory
+2. Add or modify entries following the CSV format
+3. Restart the server - changes are loaded automatically on startup
 
-**REAL (floating-point) values:**
-- **DB1.DBD4**: 23.5 (Temperature in °C)
-- **DB1.DBD8**: 101.325 (Pressure in kPa)
-- **DB1.DBD12**: 15.75 (Flow rate in L/min)
-- **DB1.DBD16**: -10.5 (Negative value test)
-- **DB1.DBD20**: 0.0 (Zero value test)
-- **DB1.DBD24**: 3.14159 (Pi approximation)
-- **DB2.DBD4**: 100.0 (Percentage)
-- **DB2.DBD8**: 1000.5 (Large value test)
+**Note**: The CSV file must be in the same directory as the server executable when running.
 
 ## Setup Instructions
 
@@ -102,6 +127,18 @@ The compiled executable will be in:
 - Debug: `x64/Debug/S7Server.exe`
 - Release: `x64/Release/S7Server.exe`
 
+### 4. Copy Configuration File
+
+Before running the server, ensure the `dresse.csv` file is in the same directory as the executable:
+
+```powershell
+# For Debug build
+Copy-Item "dresse.csv" -Destination "x64\Debug\"
+
+# For Release build
+Copy-Item "dresse.csv" -Destination "x64\Release\"
+```
+
 ## Running the Server
 
 ### Important: Administrator Privileges
@@ -128,6 +165,18 @@ S7 Server ISO-on-TCP (Snap7)
 For Node-RED Testing
 ========================================
 
+Loading CSV configuration from 'dresse.csv'...
+Loaded 57 entries from CSV configuration.
+
+Initializing Data Blocks from CSV configuration...
+Allocated DB2: 452 bytes
+Allocated DB101: 188 bytes
+Allocated DB102: 188 bytes
+[... additional DBs ...]
+  DB101.REAL184 = 1234.56 (range: 0 to 1800)
+  DB101.REAL14 = 789.12 (range: 0 to 1800)
+[... additional initializations ...]
+
 Initializing memory areas...
 Memory areas registered successfully.
 Starting server on port 102...
@@ -140,9 +189,11 @@ S7 Server Configuration:
 Protocol: ISO-on-TCP
 Port: 102
 Data Blocks:
-  - DB1: 256 bytes (General purpose)
-  - DB2: 512 bytes (Extended data)
-  - DB3: 128 bytes (Test data)
+  - DB2: 452 bytes
+  - DB101: 188 bytes
+  - DB102: 188 bytes
+  - DB103: 188 bytes
+  [... additional DBs ...]
 Inputs (I):  256 bytes
 Outputs (Q): 256 bytes
 Flags (M):   256 bytes
@@ -174,27 +225,31 @@ npm install node-red-contrib-s7
 
 ### Read/Write Examples
 
-**Read BYTE values from DB1:**
-- Variable: `DB1,BYTE0` (reads byte at byte 0, returns 42)
-- Variable: `DB1,BYTE1` (reads byte at byte 1, returns 100)
-- Variable: `DB1,BYTE2` (reads byte at byte 2, returns 255)
+The following examples use the default `dresse.csv` configuration:
 
-**Read REAL (floating-point) values from DB1:**
-- Variable: `DB1,REAL4` (reads float at byte 4, returns 23.5)
-- Variable: `DB1,REAL8` (reads float at byte 8, returns 101.325)
-- Variable: `DB1,REAL12` (reads float at byte 12, returns 15.75)
-- Variable: `DB1,REAL16` (reads float at byte 16, returns -10.5)
-- Variable: `DB1,REAL20` (reads float at byte 20, returns 0.0)
-- Variable: `DB1,REAL24` (reads float at byte 24, returns 3.14159)
+**Read REAL values from DB101:**
+- Variable: `DB101,REAL184` (reads float at byte 184, range 0-1800)
+- Variable: `DB101,REAL14` (reads float at byte 14, range 0-1800)
 
-**Read REAL values from DB2:**
-- Variable: `DB2,REAL4` (reads float at byte 4, returns 100.0)
-- Variable: `DB2,REAL8` (reads float at byte 8, returns 1000.5)
+**Read REAL values from DB151:**
+- Variable: `DB151,REAL14` (reads float at byte 14, range 0-100)
 
-**Write to DB1:**
-- Variable: `DB1,INT0` with value
-- Variable: `DB1,BYTE2` with value
-- Variable: `DB1,REAL4` with floating-point value (e.g., 25.5)
+**Read REAL values from DB201:**
+- Variable: `DB201,REAL184` (reads float at byte 184, range 0-20)
+- Variable: `DB201,REAL14` (reads float at byte 14, range 0-20)
+
+**Read REAL values from DB301 (including negative values):**
+- Variable: `DB301,REAL112` (reads float at byte 112, range -50 to 50)
+- Variable: `DB301,REAL14` (reads float at byte 14, range -50 to 50)
+- Variable: `DB301,REAL116` (reads float at byte 116, range 0-100)
+
+**Read from DB2 (configured in CSV):**
+- Variable: `DB2,REAL448` (reads float at byte 448, range 0-1400)
+
+**Write to any Data Block:**
+- Variable: `DB101,REAL184` with floating-point value (e.g., 1234.5)
+- Variable: `DB301,REAL14` with value in range -50 to 50
+- Any value you write will persist until server restart
 
 **Read Inputs/Outputs:**
 - `I0.0` - Input bit 0.0
