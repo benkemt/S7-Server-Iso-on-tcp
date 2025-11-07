@@ -187,6 +187,31 @@ bool ParseTag(const std::string& tag, int& dbNumber, int& offset) {
     }
 }
 
+// Helper function to parse CSV line with quoted fields
+std::vector<std::string> ParseCSVLine(const std::string& line) {
+    std::vector<std::string> fields;
+    std::string field;
+    bool inQuotes = false;
+    
+    for (size_t i = 0; i < line.length(); ++i) {
+        char c = line[i];
+        
+        if (c == '\"') {
+            inQuotes = !inQuotes;
+        } else if (c == ',' && !inQuotes) {
+            fields.push_back(field);
+            field.clear();
+        } else {
+            field += c;
+        }
+    }
+    
+    // Add the last field
+    fields.push_back(field);
+    
+    return fields;
+}
+
 // Load CSV configuration file
 std::vector<CSVConfigEntry> LoadCSVConfig(const std::string& filename) {
     std::vector<CSVConfigEntry> entries;
@@ -212,33 +237,27 @@ std::vector<CSVConfigEntry> LoadCSVConfig(const std::string& filename) {
             continue;
         }
         
-        // Parse CSV line
-        std::stringstream ss(line);
-        std::string tag, minStr, maxStr, echelonStr, cycletimeStr;
+        // Parse CSV line with proper quote handling
+        std::vector<std::string> fields = ParseCSVLine(line);
         
-        if (std::getline(ss, tag, ',') &&
-            std::getline(ss, minStr, ',') &&
-            std::getline(ss, maxStr, ',') &&
-            std::getline(ss, echelonStr, ',') &&
-            std::getline(ss, cycletimeStr, ',')) {
-            
+        if (fields.size() >= 5) {
             CSVConfigEntry entry;
             
             // Parse tag to get DB number and offset
-            if (!ParseTag(tag, entry.dbNumber, entry.offset)) {
-                std::cerr << "WARNING: Failed to parse tag: " << tag << std::endl;
+            if (!ParseTag(fields[0], entry.dbNumber, entry.offset)) {
+                std::cerr << "WARNING: Failed to parse tag: " << fields[0] << std::endl;
                 continue;
             }
             
             try {
-                entry.minValue = std::stof(minStr);
-                entry.maxValue = std::stof(maxStr);
-                entry.echelon = std::stof(echelonStr);
-                entry.cycletime = std::stoi(cycletimeStr);
+                entry.minValue = std::stof(fields[1]);
+                entry.maxValue = std::stof(fields[2]);
+                entry.echelon = std::stof(fields[3]);
+                entry.cycletime = std::stoi(fields[4]);
                 
                 entries.push_back(entry);
             } catch (...) {
-                std::cerr << "WARNING: Failed to parse values for tag: " << tag << std::endl;
+                std::cerr << "WARNING: Failed to parse values for tag: " << fields[0] << std::endl;
                 continue;
             }
         }
