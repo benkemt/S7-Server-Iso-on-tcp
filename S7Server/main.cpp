@@ -100,6 +100,11 @@ void S7API ReadEventCallback(void* usrPtr, PSrvEvent PEvent, int Size) {
 }
 
 // Read/Write area callback (replaces separate write callback in new API)
+// NOTE: This callback is intentionally disabled (see line 305).
+// When enabled, it intercepts ALL read/write operations but was not implementing
+// actual data transfer, causing all operations to fail silently.
+// Snap7 handles read/write operations automatically using internal buffers
+// when no callback is registered.
 int S7API RWAreaCallback(void* usrPtr, int Sender, int Operation, PS7Tag PTag, void* pUsrData) {
     if (Operation == OperationWrite) {
         std::cout << "[WRITE] Area: " << PTag->Area 
@@ -284,7 +289,20 @@ DB2[0] = 1;       // Test value at DB2.DBB0
     // Set event callbacks
     Srv_SetEventsCallback(S7Server, EventCallback, nullptr);
     Srv_SetReadEventsCallback(S7Server, ReadEventCallback, nullptr);
-    Srv_SetRWAreaCallback(S7Server, RWAreaCallback, nullptr);
+    
+    // IMPORTANT: RWAreaCallback is intentionally NOT registered here.
+    // When a RWAreaCallback is registered, Snap7 delegates ALL read/write operations
+    // to it, expecting the callback to handle data transfer. However, the current
+    // RWAreaCallback implementation only logs writes and doesn't actually copy data,
+    // causing all read/write operations to fail silently.
+    // 
+    // By NOT registering the callback, Snap7 automatically handles all read/write
+    // operations using its internal buffers with the registered memory areas,
+    // allowing clients to successfully read and write data.
+    // 
+    // If you need custom read/write logic or logging in the future, implement
+    // complete data transfer in RWAreaCallback before re-enabling this line:
+    // Srv_SetRWAreaCallback(S7Server, RWAreaCallback, nullptr);
 
     // Set event mask to capture important events
     Srv_SetMask(S7Server, mkEvent, 0xFFFFFFFF);
