@@ -100,7 +100,7 @@ void S7API ReadEventCallback(void* usrPtr, PSrvEvent PEvent, int Size) {
 }
 
 // Read/Write area callback (replaces separate write callback in new API)
-// NOTE: This callback is intentionally disabled (see line 287).
+// NOTE: This callback is intentionally disabled (see line 305).
 // When enabled, it intercepts ALL read/write operations but was not implementing
 // actual data transfer, causing all operations to fail silently.
 // Snap7 handles read/write operations automatically using internal buffers
