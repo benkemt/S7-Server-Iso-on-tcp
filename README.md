@@ -25,7 +25,7 @@ A Siemens S7 server implementation using ISO-on-TCP protocol with the Snap7 libr
 
 ### CSV-Based Dynamic Configuration
 
-The server now uses a CSV-based configuration file (`dresse.csv`) to dynamically initialize Data Blocks. This allows you to modify the server's memory layout without changing code or recompiling.
+The server now uses a CSV-based configuration file ('address.csv') to dynamically initialize Data Blocks. This allows you to modify the server's memory layout without changing code or recompiling.
 
 #### CSV Format
 
@@ -50,7 +50,7 @@ tag,min,max,echelon,cycletime
 
 #### Example Configuration
 
-The default `dresse.csv` file configures 36 Data Blocks with 57 REAL values:
+The default 'address.csv' file configures 36 Data Blocks with 57 REAL values:
 
 - **DB101-DB105**: General purpose blocks with ranges 0-1800
 - **DB151-DB155**: Configuration blocks with range 0-100
@@ -77,7 +77,7 @@ In addition to the dynamically configured Data Blocks, the server provides:
 
 To customize the server configuration:
 
-1. Edit the `dresse.csv` file in the project root directory
+1. Edit the 'address.csv' file in the project root directory
 2. Add or modify entries following the CSV format
 3. Restart the server - changes are loaded automatically on startup
 
@@ -129,14 +129,14 @@ The compiled executable will be in:
 
 ### 4. Copy Configuration File
 
-Before running the server, ensure the `dresse.csv` file is in the same directory as the executable:
+Before running the server, ensure the 'address.csv' file is in the same directory as the executable:
 
 ```powershell
 # For Debug build
-Copy-Item "dresse.csv" -Destination "x64\Debug\"
+Copy-Item "address.csv" -Destination "x64\Debug\"
 
 # For Release build
-Copy-Item "dresse.csv" -Destination "x64\Release\"
+Copy-Item "address.csv" -Destination "x64\Release\"
 ```
 
 ## Running the Server
@@ -225,7 +225,7 @@ npm install node-red-contrib-s7
 
 ### Read/Write Examples
 
-The following examples use the default `dresse.csv` configuration:
+The following examples use the default 'address.csv' configuration:
 
 **Read REAL values from DB101:**
 - Variable: `DB101,REAL184` (reads float at byte 184, range 0-1800)

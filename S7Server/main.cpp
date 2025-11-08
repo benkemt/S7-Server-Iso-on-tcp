@@ -121,9 +121,19 @@ void S7API EventCallback(void* usrPtr, PSrvEvent PEvent, int Size) {
 
 // Read event callback
 void S7API ReadEventCallback(void* usrPtr, PSrvEvent PEvent, int Size) {
-    std::cout << "[READ] Area: " << PEvent->EvtParam1 
-          << ", Start: " << PEvent->EvtParam2 
-  << ", Size: " << PEvent->EvtParam3 << std::endl;
+    // Area codes: PE=0x81, PA=0x82, MK=0x83, DB=0x84, CT=0x1C, TM=0x1D
+    const char* areaName = "Unknown";
+    if (PEvent->EvtParam1 == 0x84) areaName = "DB";
+    else if (PEvent->EvtParam1 == 0x81) areaName = "I";
+    else if (PEvent->EvtParam1 == 0x82) areaName = "Q";
+    else if (PEvent->EvtParam1 == 0x83) areaName = "M";
+    else if (PEvent->EvtParam1 == 0x1C) areaName = "C";
+    else if (PEvent->EvtParam1 == 0x1D) areaName = "T";
+    
+    std::cout << "[READ] Area: " << areaName << " (0x" << std::hex << PEvent->EvtParam1 << std::dec << ")"
+    << ", DBNum/Start: " << PEvent->EvtParam2 
+	<< ", Offset: " << PEvent->EvtParam3 
+	<< ", Size: " << PEvent->EvtParam4 << std::endl;
 }
 
 // Read/Write area callback (replaces separate write callback in new API)
@@ -316,14 +326,23 @@ std::vector<DataBlock> CreateDataBlocksFromCSV(const std::vector<CSVConfigEntry>
     for (const auto& entry : entries) {
         auto it = dbMap.find(entry.dbNumber);
         if (it != dbMap.end()) {
-            DataBlock* db = it->second;
-            float value = GenerateRandomValue(entry.minValue, entry.maxValue);
-            SetReal(db->data, entry.offset, value);
-            std::cout << "  DB" << db->number << ".REAL" << entry.offset 
-                      << " = " << value << " (range: " << entry.minValue 
-                      << " to " << entry.maxValue << ")" << std::endl;
+			DataBlock* db = it->second;
+
+            float value = 0.5;// GenerateRandomValue(entry.minValue, entry.maxValue);
+
+			SetReal(db->data, entry.offset, value);
+            std::cout << "  DB" << db->number << ".REAL" << entry.offset << " = " << value << " (range: " << entry.minValue << " to " << entry.maxValue << ")" << std::endl;
         }
     }
+    
+    // Summary: Show all created Data Blocks
+    std::cout << "\nData Block Summary:" << std::endl;
+    std::cout << "===================" << std::endl;
+    for (const auto& db : dataBlocks) {
+   std::cout << "  DB" << db.number << ": " << db.size << " bytes" << std::endl;
+    }
+ std::cout << "Total Data Blocks: " << dataBlocks.size() << std::endl;
+    std::cout << "===================" << std::endl;
     
     return dataBlocks;
 }
@@ -370,7 +389,19 @@ void CleanupResources(std::vector<DataBlock>& dataBlocks, byte* IArea, byte* QAr
     delete[] QArea;
     delete[] MArea;
     delete[] TArea;
-    delete[] CArea;
+ delete[] CArea;
+}
+
+// Diagnostic function to verify DB area accessibility
+bool VerifyDBAreaAccessible(S7Object server, int dbNumber, int size) {
+    // Try to lock the area for verification
+    void* pUsrData = nullptr;
+    int Result = Srv_LockArea(server, srvAreaDB, dbNumber);
+    if (Result == 0) {
+      Srv_UnlockArea(server, srvAreaDB, dbNumber);
+        return true;
+    }
+    return false;
 }
 
 int main() {
@@ -397,8 +428,8 @@ int main() {
     // std::cout << "NOTE: Using custom port 10102 (no admin privileges required)" << std::endl;
 
     // Load CSV configuration
-    std::cout << "Loading CSV configuration from 'dresse.csv'..." << std::endl;
-    std::vector<CSVConfigEntry> csvConfig = LoadCSVConfig("dresse.csv");
+    std::cout << "Loading CSV configuration from 'address.csv'..." << std::endl;
+    std::vector<CSVConfigEntry> csvConfig = LoadCSVConfig("address.csv");
     
     // Create and initialize Data Blocks from CSV
     std::vector<DataBlock> dataBlocks;
@@ -432,15 +463,36 @@ int main() {
     bool registrationFailed = false;
     
     // Register dynamically created Data Blocks
-    for (const auto& db : dataBlocks) {
+    for (const auto& db : dataBlocks) 
+    {
         Result = Srv_RegisterArea(S7Server, srvAreaDB, db.number, db.data, db.size);
-        if (Result != 0) {
-            std::cerr << "ERROR: Failed to register DB" << db.number << "!" << std::endl;
-            registrationFailed = true;
-            break;
+		if (Result != 0) 
+        {
+			char ErrorText[256];
+			Srv_ErrorText(Result, ErrorText, 256);
+			std::cerr << "ERROR: Failed to register DB" << db.number << "! Error: " << ErrorText << std::endl;
+			registrationFailed = true;
+			break;
+        }
+  		else 
+        {
+			std::cout << "  Registered DB" << db.number << " (" << db.size << " bytes) at address " << static_cast<void*>(db.data) << std::endl;
+
         }
     }
-    
+
+
+	//check Data block accessibility
+    for (const auto& db : dataBlocks)
+    {
+        if (!VerifyDBAreaAccessible(S7Server, db.number, db.size)) {
+            std::cerr << "ERROR: DB" << db.number << " not accessible!" << std::endl;
+        }
+        else {
+            std::cout << "  ? DB" << db.number << " verified accessible" << std::endl;
+        }
+    }
+
     if (!registrationFailed) {
         Result = Srv_RegisterArea(S7Server, srvAreaPE, 0, IArea, 256);
         if (Result != 0) {
