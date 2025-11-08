@@ -130,10 +130,19 @@ void S7API ReadEventCallback(void* usrPtr, PSrvEvent PEvent, int Size) {
     else if (PEvent->EvtParam1 == 0x1C) areaName = "C";
     else if (PEvent->EvtParam1 == 0x1D) areaName = "T";
     
+    int byteCount = PEvent->EvtParam4;
+    int realCount = (byteCount >= 4) ? byteCount / 4 : 0;
+    
     std::cout << "[READ] Area: " << areaName << " (0x" << std::hex << PEvent->EvtParam1 << std::dec << ")"
     << ", DBNum/Start: " << PEvent->EvtParam2 
 	<< ", Offset: " << PEvent->EvtParam3 
-	<< ", Size: " << PEvent->EvtParam4 << std::endl;
+	<< ", Size: " << PEvent->EvtParam4 << " bytes";
+    
+    if (PEvent->EvtParam1 == 0x84 && realCount > 0) {
+        std::cout << " (" << realCount << " REALs)";
+    }
+    
+    std::cout << std::endl;
 }
 
 // Read/Write area callback (replaces separate write callback in new API)
