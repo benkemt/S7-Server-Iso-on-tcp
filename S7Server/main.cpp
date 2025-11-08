@@ -81,7 +81,7 @@ void S7API EventCallback(void* usrPtr, PSrvEvent PEvent, int Size) {
 			EventText = "Data write";
 			break;
 		case evcNegotiatePDU:
-			EventText = "Negotiate PDU";
+			EventText = "Negotiate PDU - PDU Size: " + std::to_string(PEvent->EvtParam1) + " bytes";
 			break;
 		case evcReadSZL:
 			EventText = "Read SZL";
