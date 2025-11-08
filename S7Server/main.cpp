@@ -436,6 +436,14 @@ int main() {
     // Srv_SetParam(S7Server, p_u16_LocalPort, &customPort);
     // std::cout << "NOTE: Using custom port 10102 (no admin privileges required)" << std::endl;
 
+    // Configure PDU size (default is 480 bytes)
+    // Increase to 960 bytes to allow more variables in MultiRead operations
+    // Note: Client and server negotiate the PDU size (minimum of both)
+    int pduSize = 960;
+    Srv_SetParam(S7Server, p_i32_PDURequest, &pduSize);
+    std::cout << "Server PDU size configured: " << pduSize << " bytes" << std::endl;
+    std::cout << "NOTE: Larger PDU allows more variables per MultiRead/MultiWrite" << std::endl;
+
     // Load CSV configuration
     std::cout << "Loading CSV configuration from 'address.csv'..." << std::endl;
     std::vector<CSVConfigEntry> csvConfig = LoadCSVConfig("address.csv");
