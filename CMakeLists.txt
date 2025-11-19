@@ -16,6 +16,13 @@ set(SOURCES
 # Create executable
 add_executable(S7Server ${SOURCES})
 
+# Copy address.csv to build directory
+add_custom_command(TARGET S7Server POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${PROJECT_SOURCE_DIR}/S7Server/address.csv"
+    $<TARGET_FILE_DIR:S7Server>
+)
+
 # Link directories
 link_directories(${PROJECT_SOURCE_DIR}/S7Server/snap7)
 

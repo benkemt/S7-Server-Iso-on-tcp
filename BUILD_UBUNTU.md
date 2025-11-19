@@ -371,7 +371,7 @@ sudo S7Server
 
 You can also run S7Server in a Docker container on Linux. This can simplify deployment and isolate the server in a container environment.
 
-For Docker setup on Windows with Node-RED, see [DOCKER_SETUP.md](DOCKER_SETUP.md).
+For Docker setup on Windows with Node-RED, see [DOCKER_SETUP.md](doc/DOCKER_SETUP.md).
 
 ## Development
 
@@ -410,7 +410,7 @@ sudo ./build/S7Server
 
 - [Main README](README.md) - General project information
 - [Windows Build Instructions](README.md#setup-instructions) - Building on Windows
-- [Docker Setup](DOCKER_SETUP.md) - Docker configuration
+- [Docker Setup](doc/DOCKER_SETUP.md) - Docker configuration
 - [Snap7 Documentation](http://snap7.sourceforge.net/) - Snap7 library reference
 
 ## License

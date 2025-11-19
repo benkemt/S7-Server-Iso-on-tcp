@@ -3,14 +3,16 @@ A Siemens S7 server implementation using ISO-on-TCP protocol with the Snap7 libr
 
 ## ⚠️ Security Notice
 
-**This server is intended for testing and development purposes only.** It should be run in isolated, trusted networks. See [SECURITY.md](SECURITY.md) for detailed security considerations.
+**This server is intended for testing and development purposes only.** It should be run in isolated, trusted networks. See [SECURITY.md](doc/SECURITY.md) for detailed security considerations.
 
 ## Features
 
 - **ISO-on-TCP Protocol**: Full implementation of Siemens S7 communication protocol
+- **CSV-Based Configuration**: Dynamic memory initialization using CSV files - no code changes needed
+- **Dynamic Tag Value Updates**: Automatic value changes based on configurable cycle times and step increments
 - **Multiple Memory Areas**: Supports Data Blocks (DB), Inputs (I), Outputs (Q), Flags (M), Timers (T), and Counters (C)
 - **Real-time Monitoring**: Event callbacks for server operations, read/write operations
-- **Pre-configured Test Data**: Includes test data in Data Blocks for immediate testing
+- **Flexible Configuration**: Easy to customize memory layout and test values via CSV file
 - **Cross-Platform**: Works on Windows (Visual Studio) and Linux (CMake/GCC)
 
 ## Requirements
@@ -30,29 +32,84 @@ A Siemens S7 server implementation using ISO-on-TCP protocol with the Snap7 libr
 
 ## Memory Configuration
 
-The server provides the following memory areas:
+### CSV-Based Dynamic Configuration
+
+The server now uses a CSV-based configuration file ('address.csv') to dynamically initialize Data Blocks. This allows you to modify the server's memory layout without changing code or recompiling.
+
+#### CSV Format
+
+The configuration file uses the following format:
+
+```csv
+tag,min,max,echelon,cycletime
+"DB101,REAL184",0,1800,0.5,2000
+"DB101,REAL14",0,1800,0.5,2000
+"DB151,REAL14",0,100,1,2000
+```
+
+#### CSV Fields
+
+| Field | Description |
+|-------|-------------|
+| **tag** | S7 address in format: `DB<number>,REAL<offset>` where REAL indicates a 4-byte float at the specified byte offset |
+| **min** | Minimum value for the tag (starting value and lower boundary) |
+| **max** | Maximum value for the tag (upper boundary) |
+| **echelon** | Step/increment value used for dynamic value updates |
+| **cycletime** | Update interval in milliseconds - determines how often the tag value changes |
+
+#### Example Configuration
+
+The default 'address.csv' file configures 36 Data Blocks with 57 REAL values:
+
+- **DB101-DB105**: General purpose blocks with ranges 0-1800
+- **DB151-DB155**: Configuration blocks with range 0-100
+- **DB201-DB205**: Small value blocks with range 0-20
+- **DB251-DB255**: Percentage blocks with range 0-100
+- **DB301-DB309**: Process blocks with various ranges, including negative values (-50 to 50)
+- **DB352-DB358**: Status blocks with range 0-100
+
+Data Blocks are automatically sized based on the highest offset + 4 bytes (REAL size) defined in the CSV.
+
+#### Dynamic Value Updates
+
+The server includes an automatic value update feature that simulates changing process values:
+
+- **Update Mechanism**: Every 100ms, the server checks which tags need updating based on their individual `cycletime` settings
+- **Value Pattern**: Each tag value follows a sawtooth pattern:
+  1. Starts at the `min` value
+  2. Increments by `echelon` every `cycletime` milliseconds
+  3. When `max` is reached, switches to decrementing
+  4. When `min` is reached, switches back to incrementing
+- **Independent Timing**: Each tag updates independently according to its own `cycletime`
+- **Example**: A tag with `min=0`, `max=100`, `echelon=0.5`, and `cycletime=2000` will:
+  - Start at 0
+  - Increase by 0.5 every 2 seconds
+  - Reach 100 after 400 seconds (200 updates)
+  - Then decrease back to 0 at the same rate
+
+This feature is ideal for testing applications that need to monitor changing values, such as temperature sensors, flow meters, or other process variables.
+
+### Standard Memory Areas
+
+In addition to the dynamically configured Data Blocks, the server provides:
 
 | Area | Type | Size | Description |
 |------|------|------|-------------|
-| DB1 | Data Block | 256 bytes | General purpose data block |
-| DB2 | Data Block | 512 bytes | Extended data block |
-| DB3 | Data Block | 128 bytes | Test data block |
 | I | Inputs | 256 bytes | Process input image |
 | Q | Outputs | 256 bytes | Process output image |
 | M | Flags/Merkers | 256 bytes | Flag memory |
 | T | Timers | 512 bytes | Timer area |
 | C | Counters | 512 bytes | Counter area |
 
-### Test Data
+### Customizing Configuration
 
-The server initializes with the following test data:
+To customize the server configuration:
 
-- **DB1.DBB0**: 42
-- **DB1.DBB1**: 100
-- **DB1.DBB2**: 255 (0xFF)
-- **DB2.DBB0**: 1
-- **DB2.DBB1**: 2
-- **DB2.DBB2**: 3
+1. Edit the 'address.csv' file in the project root directory
+2. Add or modify entries following the CSV format
+3. Restart the server - changes are loaded automatically on startup
+
+**Note**: The CSV file must be in the same directory as the server executable when running.
 
 ## Setup Instructions
 
@@ -104,6 +161,18 @@ The compiled executable will be in:
 - Debug: `x64/Debug/S7Server.exe`
 - Release: `x64/Release/S7Server.exe`
 
+### 4. Copy Configuration File
+
+Before running the server, ensure the 'address.csv' file is in the same directory as the executable:
+
+```powershell
+# For Debug build
+Copy-Item "address.csv" -Destination "x64\Debug\"
+
+# For Release build
+Copy-Item "address.csv" -Destination "x64\Release\"
+```
+
 ## Running the Server
 
 ### Important: Administrator Privileges
@@ -130,11 +199,26 @@ S7 Server ISO-on-TCP (Snap7)
 For Node-RED Testing
 ========================================
 
+Loading CSV configuration from 'dresse.csv'...
+Loaded 57 entries from CSV configuration.
+
+Initializing Data Blocks from CSV configuration...
+Allocated DB2: 452 bytes
+Allocated DB101: 188 bytes
+Allocated DB102: 188 bytes
+[... additional DBs ...]
+  DB101.REAL184 = 0 (range: 0 to 1800)
+  DB101.REAL14 = 0 (range: 0 to 1800)
+[... additional initializations ...]
+
 Initializing memory areas...
 Memory areas registered successfully.
 Starting server on port 102...
 
 *** Server started successfully! ***
+
+Initialized 57 tag states for dynamic updates.
+Dynamic tag value updates enabled with 100ms update interval.
 
 ========================================
 S7 Server Configuration:
@@ -142,9 +226,11 @@ S7 Server Configuration:
 Protocol: ISO-on-TCP
 Port: 102
 Data Blocks:
-  - DB1: 256 bytes (General purpose)
-  - DB2: 512 bytes (Extended data)
-  - DB3: 128 bytes (Test data)
+  - DB2: 452 bytes
+  - DB101: 188 bytes
+  - DB102: 188 bytes
+  - DB103: 188 bytes
+  [... additional DBs ...]
 Inputs (I):  256 bytes
 Outputs (Q): 256 bytes
 Flags (M):   256 bytes
@@ -176,14 +262,31 @@ npm install node-red-contrib-s7
 
 ### Read/Write Examples
 
-**Read from DB1:**
-- Variable: `DB1,INT0` (reads integer at byte 0)
-- Variable: `DB1,BYTE1` (reads byte at byte 1)
-- Variable: `DB1,REAL4` (reads real/float at byte 4)
+The following examples use the default 'address.csv' configuration:
 
-**Write to DB1:**
-- Variable: `DB1,INT0` with value
-- Variable: `DB1,BYTE2` with value
+**Read REAL values from DB101:**
+- Variable: `DB101,REAL184` (reads float at byte 184, range 0-1800)
+- Variable: `DB101,REAL14` (reads float at byte 14, range 0-1800)
+
+**Read REAL values from DB151:**
+- Variable: `DB151,REAL14` (reads float at byte 14, range 0-100)
+
+**Read REAL values from DB201:**
+- Variable: `DB201,REAL184` (reads float at byte 184, range 0-20)
+- Variable: `DB201,REAL14` (reads float at byte 14, range 0-20)
+
+**Read REAL values from DB301 (including negative values):**
+- Variable: `DB301,REAL112` (reads float at byte 112, range -50 to 50)
+- Variable: `DB301,REAL14` (reads float at byte 14, range -50 to 50)
+- Variable: `DB301,REAL116` (reads float at byte 116, range 0-100)
+
+**Read from DB2 (configured in CSV):**
+- Variable: `DB2,REAL448` (reads float at byte 448, range 0-1400)
+
+**Write to any Data Block:**
+- Variable: `DB101,REAL184` with floating-point value (e.g., 1234.5)
+- Variable: `DB301,REAL14` with value in range -50 to 50
+- Any value you write will persist until server restart
 
 **Read Inputs/Outputs:**
 - `I0.0` - Input bit 0.0
