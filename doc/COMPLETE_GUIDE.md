@@ -96,7 +96,7 @@ Do you have Docker Desktop?
 ### For All Options
 - ? Windows 10/11
 - ? Visual Studio 2022
-- ? Snap7 library (clone from https://github.com/davenardella/snap7 or run `setup_snap7.ps1`)
+- ? Snap7 library (run `setup_snap7.ps1`)
 - ? Administrator privileges
 
 ### Additional for Docker Option

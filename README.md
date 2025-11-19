@@ -13,7 +13,7 @@ A Siemens S7 server implementation using ISO-on-TCP protocol with the Snap7 libr
 - **Multiple Memory Areas**: Supports Data Blocks (DB), Inputs (I), Outputs (Q), Flags (M), Timers (T), and Counters (C)
 - **Real-time Monitoring**: Event callbacks for server operations, read/write operations
 - **Flexible Configuration**: Easy to customize memory layout and test values via CSV file
-- **Cross-Platform**: Works on Windows (Visual Studio) and Linux (CMake/GCC)
+- **Windows Compatible**: Built with Visual Studio 2022 for Windows systems
 
 ## Requirements
 
