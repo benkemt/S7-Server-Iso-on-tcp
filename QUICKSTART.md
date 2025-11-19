@@ -4,15 +4,26 @@ Get your S7 Server up and running in 5 minutes!
 
 ## Step 1: Download Snap7
 
+**Note:** The SourceForge download site does not have the latest version of Snap7. We recommend using the official GitHub repository.
+
+**Option A: Clone from GitHub (Recommended)**
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/davenardella/snap7.git
+   ```
+2. Build for Windows using the Visual Studio solution in `snap7/build/windows/`
+3. Or follow the build instructions in the repository
+
+**Option B: Download from SourceForge (Older Version)**
 1. Visit [http://snap7.sourceforge.net/](http://snap7.sourceforge.net/)
-2. Download the latest **Windows x64** version
+2. Download an older **Windows x64** version
 3. Extract the archive to a folder (e.g., `C:\snap7`)
 
 ## Step 2: Run Setup Script
 
 1. Double-click `setup_snap7.bat` in the project root
 2. Follow the prompts
-3. Select your extracted Snap7 folder when asked
+3. Select your Snap7 folder when asked (either your built GitHub clone or extracted SourceForge folder)
 4. Wait for the script to copy the necessary files
 
 ## Step 3: Build the Project

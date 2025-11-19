@@ -1,9 +1,9 @@
 # S7-Server-Iso-on-tcp
-A Siemens S7 server implementation using ISO-on-TCP protocol with the Snap7 library. This server is designed for testing Node-RED S7 applications on Windows.
+A Siemens S7 server implementation using ISO-on-TCP protocol with the Snap7 library. This server is designed for testing Node-RED S7 applications on Windows and Linux.
 
 ## ⚠️ Security Notice
 
-**This server is intended for testing and development purposes only.** It should be run in isolated, trusted networks. See [SECURITY.md](SECURITY.md) for detailed security considerations.
+**This server is intended for testing and development purposes only.** It should be run in isolated, trusted networks. See [SECURITY.md](doc/SECURITY.md) for detailed security considerations.
 
 ## Features
 
@@ -17,10 +17,18 @@ A Siemens S7 server implementation using ISO-on-TCP protocol with the Snap7 libr
 
 ## Requirements
 
+### Windows
 - Windows 10 or later
 - Visual Studio 2022 (Community, Professional, or Enterprise)
 - Snap7 library (download instructions below)
 - Administrator privileges (required for port 102)
+
+### Ubuntu/Linux
+- Ubuntu 20.04 LTS or later (or any Debian-based distribution)
+- CMake 3.10 or higher
+- GCC/G++ compiler (build-essential package)
+- Snap7 library (download and build instructions in [BUILD_UBUNTU.md](doc/BUILD_UBUNTU.md))
+- Root/sudo privileges (required for port 102)
 
 ## Memory Configuration
 
@@ -105,34 +113,51 @@ To customize the server configuration:
 
 ## Setup Instructions
 
+> 📋 **Choose Your Platform:**
+> - **Windows**: Follow the instructions below
+> - **Ubuntu/Linux**: See [BUILD_UBUNTU.md](doc/BUILD_UBUNTU.md) for detailed Linux build instructions
+
+### Windows Setup
+
 ### 1. Download Snap7 Library
 
-1. Visit the [Snap7 official website](http://snap7.sourceforge.net/)
-2. Download the latest Snap7 release for Windows
+**Note:** The SourceForge download site does not have the latest version of Snap7. We recommend cloning from the official GitHub repository:
+
+**Option A: Clone from GitHub (Recommended)**
+1. Clone the Snap7 repository:
+   ```bash
+   git clone https://github.com/davenardella/snap7.git
+   ```
+2. Build the library following the instructions in the repository
+3. Locate the built files for Windows x64
+
+**Option B: Download from SourceForge (Older Version)**
+1. Visit http://snap7.sourceforge.net/
+2. Download an older Snap7 release for Windows
 3. Extract the archive
 
 ### 2. Install Snap7 Files
 
-From the extracted Snap7 archive, copy the following files to the `S7Server/snap7/` directory in this project:
+From the built or extracted Snap7 files, copy the following to the `S7Server/snap7/` directory in this project:
 
 ```
 S7Server/snap7/
-├── snap7.h        (from snap7-full-x.x.x/include/)
-├── snap7.lib      (from snap7-full-x.x.x/build/bin/x64/)
-└── snap7.dll      (from snap7-full-x.x.x/build/bin/x64/)
+├── snap7.h        (from snap7/release/Wrappers/c-cpp/)
+├── snap7.lib    (from snap7/build/bin/x64/ or snap7/build/bin/win64/)
+└── snap7.dll    (from snap7/build/bin/x64/ or snap7/build/bin/win64/)
 ```
 
 **Note**: Use the x64 (64-bit) version of the library files.
 
-Example PowerShell commands:
+Example PowerShell commands (adjust paths based on where you built/extracted Snap7):
 ```powershell
 # Create snap7 directory
 New-Item -ItemType Directory -Force -Path S7Server\snap7
 
-# Copy files (adjust paths to your Snap7 download location)
-Copy-Item "C:\path\to\snap7-full-x.x.x\include\snap7.h" -Destination "S7Server\snap7\"
-Copy-Item "C:\path\to\snap7-full-x.x.x\build\bin\x64\snap7.lib" -Destination "S7Server\snap7\"
-Copy-Item "C:\path\to\snap7-full-x.x.x\build\bin\x64\snap7.dll" -Destination "S7Server\snap7\"
+# Copy files from GitHub build (adjust path to your Snap7 clone location)
+Copy-Item "C:\path\to\snap7\release\Wrappers\c-cpp\snap7.h" -Destination "S7Server\snap7\"
+Copy-Item "C:\path\to\snap7\build\bin\win64\snap7.lib" -Destination "S7Server\snap7\"
+Copy-Item "C:\path\to\snap7\build\bin\win64\snap7.dll" -Destination "S7Server\snap7\"
 ```
 
 ### 3. Build the Project
@@ -360,6 +385,7 @@ The Snap7 library is licensed under the GNU LGPL v3. See [Snap7 License](http://
 
 ## References
 
+- [Snap7 GitHub Repository](https://github.com/davenardella/snap7) - Official source code (recommended)
 - [Snap7 Official Documentation](http://snap7.sourceforge.net/)
 - [Snap7 Server Class Reference](http://snap7.sourceforge.net/snap7_server.html)
 - [Node-RED S7 Contrib](https://flows.nodered.org/node/node-red-contrib-s7)
