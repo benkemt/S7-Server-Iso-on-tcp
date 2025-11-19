@@ -37,6 +37,20 @@ struct CSVConfigEntry {
     int cycletime;
 };
 
+// Structure to hold tag state for dynamic updates
+struct TagState {
+    int dbNumber;
+    int offset;
+    float currentValue;
+    float minValue;
+    float maxValue;
+    float echelon;
+    int cycletime;
+    bool increasing;  // true = increasing, false = decreasing
+    std::chrono::steady_clock::time_point lastUpdateTime;
+    byte* dataPtr;  // Pointer to the data block memory
+};
+
 // Structure to hold Data Block information
 struct DataBlock {
     int number;
@@ -173,6 +187,18 @@ void SetReal(byte* buffer, int offset, float value) {
     buffer[offset + 1] = floatBytes[2];
     buffer[offset + 2] = floatBytes[1];
     buffer[offset + 3] = floatBytes[0];  // Least significant byte
+}
+
+// Helper function to read float from S7 REAL format (big-endian IEEE 754)
+float GetReal(byte* buffer, int offset) {
+    // S7 uses big-endian byte order, convert to little-endian
+    byte floatBytes[4];
+    floatBytes[3] = buffer[offset + 0];  // Most significant byte
+    floatBytes[2] = buffer[offset + 1];
+    floatBytes[1] = buffer[offset + 2];
+    floatBytes[0] = buffer[offset + 3];  // Least significant byte
+    
+    return *reinterpret_cast<float*>(floatBytes);
 }
 
 // Parse CSV tag format "DB<number>,REAL<offset>"
@@ -332,12 +358,13 @@ std::vector<DataBlock> CreateDataBlocksFromCSV(const std::vector<CSVConfigEntry>
     }
     
     // Third pass: initialize values from CSV using map for fast lookup
+    // Start values at minimum to begin the increasing cycle
     for (const auto& entry : entries) {
         auto it = dbMap.find(entry.dbNumber);
         if (it != dbMap.end()) {
 			DataBlock* db = it->second;
 
-            float value = 0.5;// GenerateRandomValue(entry.minValue, entry.maxValue);
+            float value = entry.minValue;  // Start at minimum value
 
 			SetReal(db->data, entry.offset, value);
             std::cout << "  DB" << db->number << ".REAL" << entry.offset << " = " << value << " (range: " << entry.minValue << " to " << entry.maxValue << ")" << std::endl;
@@ -386,6 +413,80 @@ void DisplayStatus(S7Object Server) {
 		std::cout << "Server Status: " << (ServerStatus == 1 ? "RUNNING" : "STOPPED") << std::endl;
 		std::cout << "Connected Clients: " << ClientsCount << std::endl;
 	}
+}
+
+// Initialize tag states from CSV configuration and data blocks
+std::vector<TagState> InitializeTagStates(const std::vector<CSVConfigEntry>& entries, 
+                                          const std::vector<DataBlock>& dataBlocks) {
+    std::vector<TagState> tagStates;
+    
+    // Build map for fast DB lookup
+    std::map<int, const DataBlock*> dbMap;
+    for (const auto& db : dataBlocks) {
+        dbMap[db.number] = &db;
+    }
+    
+    // Create tag state for each CSV entry
+    for (const auto& entry : entries) {
+        auto it = dbMap.find(entry.dbNumber);
+        if (it != dbMap.end()) {
+            TagState state;
+            state.dbNumber = entry.dbNumber;
+            state.offset = entry.offset;
+            state.currentValue = entry.minValue;  // Start at minimum
+            state.minValue = entry.minValue;
+            state.maxValue = entry.maxValue;
+            state.echelon = entry.echelon;
+            state.cycletime = entry.cycletime;
+            state.increasing = true;  // Start by increasing
+            state.lastUpdateTime = std::chrono::steady_clock::now();
+            state.dataPtr = it->second->data;
+            
+            tagStates.push_back(state);
+        }
+    }
+    
+    std::cout << "\nInitialized " << tagStates.size() << " tag states for dynamic updates." << std::endl;
+    return tagStates;
+}
+
+// Update tag values based on cycletime and echelon
+void UpdateTagValues(std::vector<TagState>& tagStates) {
+    auto currentTime = std::chrono::steady_clock::now();
+    
+    for (auto& tag : tagStates) {
+        // Calculate elapsed time since last update in milliseconds
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+            currentTime - tag.lastUpdateTime).count();
+        
+        // Check if it's time to update this tag based on cycletime
+        if (elapsed >= tag.cycletime) {
+            // Update the value based on direction and echelon
+            if (tag.increasing) {
+                tag.currentValue += tag.echelon;
+                
+                // Check if we've reached or exceeded the max value
+                if (tag.currentValue >= tag.maxValue) {
+                    tag.currentValue = tag.maxValue;
+                    tag.increasing = false;  // Switch to decreasing
+                }
+            } else {
+                tag.currentValue -= tag.echelon;
+                
+                // Check if we've reached or gone below the min value
+                if (tag.currentValue <= tag.minValue) {
+                    tag.currentValue = tag.minValue;
+                    tag.increasing = true;  // Switch to increasing
+                }
+            }
+            
+            // Write the new value to the data block
+            SetReal(tag.dataPtr, tag.offset, tag.currentValue);
+            
+            // Update last update time
+            tag.lastUpdateTime = currentTime;
+        }
+    }
 }
 
 // Helper function to cleanup allocated memory
@@ -608,13 +709,25 @@ int main() {
 	std::cout << "\n*** Server started successfully! ***\n" << std::endl;
 	DisplayConfig(dataBlocks);
     
+    // Initialize tag states for dynamic value updates
+    std::vector<TagState> tagStates;
+    if (!csvConfig.empty()) {
+        tagStates = InitializeTagStates(csvConfig, dataBlocks);
+        std::cout << "Dynamic tag value updates enabled with 100ms update interval." << std::endl;
+    }
+    
     std::cout << "Server is running. Press Ctrl+C to stop.\n" << std::endl;
 
-    // Main server loop with time-based status updates
+    // Main server loop with time-based status updates and tag value updates
     auto lastStatusTime = std::chrono::steady_clock::now();
     const auto statusInterval = std::chrono::seconds(30);
     
     while (ServerRunning) {
+        // Update tag values every 100ms
+        if (!tagStates.empty()) {
+            UpdateTagValues(tagStates);
+        }
+        
         // Display status every 30 seconds
 		auto currentTime = std::chrono::steady_clock::now();
 		if (currentTime - lastStatusTime >= statusInterval) {
@@ -622,8 +735,8 @@ int main() {
 		    lastStatusTime = currentTime;
 		}
         
-        // Sleep for 1 second
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        // Sleep for 100ms (threshold as specified in requirements)
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     // Shutdown
