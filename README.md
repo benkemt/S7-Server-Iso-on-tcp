@@ -9,6 +9,7 @@ A Siemens S7 server implementation using ISO-on-TCP protocol with the Snap7 libr
 
 - **ISO-on-TCP Protocol**: Full implementation of Siemens S7 communication protocol
 - **CSV-Based Configuration**: Dynamic memory initialization using CSV files - no code changes needed
+- **Dynamic Tag Value Updates**: Automatic value changes based on configurable cycle times and step increments
 - **Multiple Memory Areas**: Supports Data Blocks (DB), Inputs (I), Outputs (Q), Flags (M), Timers (T), and Counters (C)
 - **Real-time Monitoring**: Event callbacks for server operations, read/write operations
 - **Flexible Configuration**: Easy to customize memory layout and test values via CSV file
@@ -43,10 +44,10 @@ tag,min,max,echelon,cycletime
 | Field | Description |
 |-------|-------------|
 | **tag** | S7 address in format: `DB<number>,REAL<offset>` where REAL indicates a 4-byte float at the specified byte offset |
-| **min** | Minimum value for random initialization |
-| **max** | Maximum value for random initialization |
-| **echelon** | Step/increment value (reserved for future use) |
-| **cycletime** | Update interval in milliseconds (reserved for future use) |
+| **min** | Minimum value for the tag (starting value and lower boundary) |
+| **max** | Maximum value for the tag (upper boundary) |
+| **echelon** | Step/increment value used for dynamic value updates |
+| **cycletime** | Update interval in milliseconds - determines how often the tag value changes |
 
 #### Example Configuration
 
@@ -60,6 +61,25 @@ The default 'address.csv' file configures 36 Data Blocks with 57 REAL values:
 - **DB352-DB358**: Status blocks with range 0-100
 
 Data Blocks are automatically sized based on the highest offset + 4 bytes (REAL size) defined in the CSV.
+
+#### Dynamic Value Updates
+
+The server includes an automatic value update feature that simulates changing process values:
+
+- **Update Mechanism**: Every 100ms, the server checks which tags need updating based on their individual `cycletime` settings
+- **Value Pattern**: Each tag value follows a sawtooth pattern:
+  1. Starts at the `min` value
+  2. Increments by `echelon` every `cycletime` milliseconds
+  3. When `max` is reached, switches to decrementing
+  4. When `min` is reached, switches back to incrementing
+- **Independent Timing**: Each tag updates independently according to its own `cycletime`
+- **Example**: A tag with `min=0`, `max=100`, `echelon=0.5`, and `cycletime=2000` will:
+  - Start at 0
+  - Increase by 0.5 every 2 seconds
+  - Reach 100 after 400 seconds (200 updates)
+  - Then decrease back to 0 at the same rate
+
+This feature is ideal for testing applications that need to monitor changing values, such as temperature sensors, flow meters, or other process variables.
 
 ### Standard Memory Areas
 
@@ -173,8 +193,8 @@ Allocated DB2: 452 bytes
 Allocated DB101: 188 bytes
 Allocated DB102: 188 bytes
 [... additional DBs ...]
-  DB101.REAL184 = 1234.56 (range: 0 to 1800)
-  DB101.REAL14 = 789.12 (range: 0 to 1800)
+  DB101.REAL184 = 0 (range: 0 to 1800)
+  DB101.REAL14 = 0 (range: 0 to 1800)
 [... additional initializations ...]
 
 Initializing memory areas...
@@ -182,6 +202,9 @@ Memory areas registered successfully.
 Starting server on port 102...
 
 *** Server started successfully! ***
+
+Initialized 57 tag states for dynamic updates.
+Dynamic tag value updates enabled with 100ms update interval.
 
 ========================================
 S7 Server Configuration:
