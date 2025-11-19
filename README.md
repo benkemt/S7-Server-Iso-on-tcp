@@ -27,7 +27,7 @@ A Siemens S7 server implementation using ISO-on-TCP protocol with the Snap7 libr
 - Ubuntu 20.04 LTS or later (or any Debian-based distribution)
 - CMake 3.10 or higher
 - GCC/G++ compiler (build-essential package)
-- Snap7 library (download and build instructions in [BUILD_UBUNTU.md](BUILD_UBUNTU.md))
+- Snap7 library (download and build instructions in [BUILD_UBUNTU.md](doc/BUILD_UBUNTU.md))
 - Root/sudo privileges (required for port 102)
 
 ## Memory Configuration
@@ -115,7 +115,7 @@ To customize the server configuration:
 
 > 📋 **Choose Your Platform:**
 > - **Windows**: Follow the instructions below
-> - **Ubuntu/Linux**: See [BUILD_UBUNTU.md](BUILD_UBUNTU.md) for detailed Linux build instructions
+> - **Ubuntu/Linux**: See [BUILD_UBUNTU.md](doc/BUILD_UBUNTU.md) for detailed Linux build instructions
 
 ### Windows Setup
 

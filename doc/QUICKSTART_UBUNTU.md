@@ -101,7 +101,7 @@ ls -la S7Server/snap7/
 
 - Complete build guide: [BUILD_UBUNTU.md](BUILD_UBUNTU.md)
 - Implementation details: [UBUNTU_IMPLEMENTATION.md](UBUNTU_IMPLEMENTATION.md)
-- General information: [README.md](README.md)
+- General information: [README.md](../README.md)
 
 ## All Make Commands
 
