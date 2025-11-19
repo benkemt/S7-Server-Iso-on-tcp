@@ -35,16 +35,16 @@ sudo apt-get install -y build-essential cmake git wget
 
 2. **Build Snap7**:
    ```bash
-   cd build/unix
-   make -f x86_64_linux.mk
+   cd build/linux
+   make
    ```
 
 3. **Copy Snap7 files to the project**:
    ```bash
    cd /path/to/S7-Server-Iso-on-tcp
    mkdir -p S7Server/snap7
-   cp /tmp/snap7/release/Wrappers/c-cpp/snap7.h S7Server/snap7/
-   cp /tmp/snap7/build/bin/x86_64-linux/libsnap7.so S7Server/snap7/
+   cp /tmp/snap7/release/wrappers/c-cpp/snap7.h S7Server/snap7/
+   cp /tmp/snap7/build/bin/linux/libsnap7.so S7Server/snap7/
    ```
 
 4. **Build S7Server**:
