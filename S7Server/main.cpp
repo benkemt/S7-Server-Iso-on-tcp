@@ -4,6 +4,11 @@
  * 
  * This server creates a Siemens S7 compatible server using ISO-on-TCP protocol
  * that can be used for testing Node-RED S7 applications.
+ * 
+ * Features:
+ * - Dynamic tag value updates based on CSV configuration
+ * - Cycletime-based scheduling for value changes
+ * - Sawtooth pattern value generation (min -> max -> min)
  */
 
 #include <iostream>
