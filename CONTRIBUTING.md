@@ -18,11 +18,11 @@ Thank you for your interest in contributing to this project! This document provi
 
 - Windows 10 or later
 - Visual Studio 2022 with C++ development tools
-- Snap7 library (see README.md for setup instructions)
+- Snap7 library - Clone from the [official GitHub repository](https://github.com/davenardella/snap7) (recommended) or see README.md for setup instructions
 
 ### Building the Project
 
-1. Run `setup_snap7.bat` to set up the Snap7 library
+1. Clone and build the Snap7 library from https://github.com/davenardella/snap7, or run `setup_snap7.bat` to set up the Snap7 library
 2. Open `S7Server.sln` in Visual Studio 2022
 3. Select Debug|x64 configuration
 4. Build the solution (F7)

@@ -200,7 +200,7 @@ S7-Server-Iso-on-tcp/
 
 - **Windows 10 or later**: Operating system requirement
 - **Visual Studio 2022**: C++ compiler and IDE
-- **Snap7 Library**: S7 protocol implementation (user downloads)
+- **Snap7 Library**: S7 protocol implementation - Clone from [GitHub](https://github.com/davenardella/snap7) (recommended) or download older version from SourceForge
 - **Node-RED** (optional): For testing the server
 
 ## Testing Recommendations

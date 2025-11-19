@@ -11,21 +11,23 @@ sudo apt-get install -y build-essential cmake git wget
 
 ## Option 1: Build Snap7 Manually (Recommended)
 
-```bash
-# 1. Download Snap7
-cd /tmp
-wget http://sourceforge.net/projects/snap7/files/1.4.2/snap7-full-1.4.2.tar.gz
+**Note:** The SourceForge download site does not have the latest version of Snap7. We recommend using the official GitHub repository instead.
 
-# 2. Extract and build
-tar -xzf snap7-full-1.4.2.tar.gz
-cd snap7-full-1.4.2/build/unix
+```bash
+# 1. Clone Snap7 from GitHub
+cd /tmp
+git clone https://github.com/davenardella/snap7.git
+cd snap7
+
+# 2. Build Snap7
+cd build/unix
 make -f x86_64_linux.mk
 
 # 3. Copy to project
 cd /path/to/S7-Server-Iso-on-tcp
 mkdir -p S7Server/snap7
-cp /tmp/snap7-full-1.4.2/release/Wrappers/c-cpp/snap7.h S7Server/snap7/
-cp /tmp/snap7-full-1.4.2/build/bin/x86_64-linux/libsnap7.so S7Server/snap7/
+cp /tmp/snap7/release/Wrappers/c-cpp/snap7.h S7Server/snap7/
+cp /tmp/snap7/build/bin/x86_64-linux/libsnap7.so S7Server/snap7/
 
 # 4. Build S7Server
 make
@@ -112,4 +114,3 @@ make clean   # Clean build artifacts
 make test    # Test the build
 make install # Install system-wide (requires sudo)
 make help    # Show all targets
-```

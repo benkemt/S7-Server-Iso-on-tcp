@@ -121,7 +121,7 @@ Users now have multiple ways to build on Ubuntu:
 
 ## Known Limitations
 
-1. **Snap7 Download**: Users must manually download Snap7 due to network restrictions in automated environments
+1. **Snap7 Source**: Users must clone Snap7 from the GitHub repository (https://github.com/davenardella/snap7) as the SourceForge site does not have the latest version
 2. **Port 102 Privilege**: Requires sudo/root on Linux (same as Windows requirement for Administrator)
 3. **Library Building**: Users need to build Snap7 from source on Linux (or obtain pre-built binaries)
 

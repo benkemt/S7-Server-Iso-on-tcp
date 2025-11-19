@@ -22,22 +22,20 @@ sudo apt-get install -y build-essential cmake git wget
 
 ## Quick Start
 
-### Method 1: Using Pre-built Snap7 (Recommended)
+### Method 1: Using GitHub Repository (Recommended)
 
-If you have access to download from SourceForge:
+**Note:** The SourceForge download site does not have the latest version of Snap7. We recommend using the official GitHub repository.
 
-1. **Download Snap7 library**:
+1. **Clone Snap7 from GitHub**:
    ```bash
    cd /tmp
-   # Check http://snap7.sourceforge.net/ for the latest version
-   # As of this writing, 1.4.2 is the latest stable release
-   wget http://sourceforge.net/projects/snap7/files/1.4.2/snap7-full-1.4.2.tar.gz
+   git clone https://github.com/davenardella/snap7.git
+   cd snap7
    ```
 
-2. **Extract and build Snap7**:
+2. **Build Snap7**:
    ```bash
-   tar -xzf snap7-full-1.4.2.tar.gz
-   cd snap7-full-1.4.2/build/unix
+   cd build/unix
    make -f x86_64_linux.mk
    ```
 
@@ -45,8 +43,8 @@ If you have access to download from SourceForge:
    ```bash
    cd /path/to/S7-Server-Iso-on-tcp
    mkdir -p S7Server/snap7
-   cp /tmp/snap7-full-1.4.2/release/Wrappers/c-cpp/snap7.h S7Server/snap7/
-   cp /tmp/snap7-full-1.4.2/build/bin/x86_64-linux/libsnap7.so S7Server/snap7/
+   cp /tmp/snap7/release/Wrappers/c-cpp/snap7.h S7Server/snap7/
+   cp /tmp/snap7/build/bin/x86_64-linux/libsnap7.so S7Server/snap7/
    ```
 
 4. **Build S7Server**:
@@ -56,11 +54,11 @@ If you have access to download from SourceForge:
 
 ### Method 2: Using the Setup Script
 
-If you have manually downloaded the Snap7 archive:
+If you have manually cloned the Snap7 repository to a different location:
 
-1. **Download Snap7** from http://snap7.sourceforge.net/ and save to `/tmp/snap7_build/snap7.tar.gz`
+1. **Clone Snap7** from https://github.com/davenardella/snap7.git to your preferred location
 
-2. **Run the setup script**:
+2. **Run the setup script** (you may need to modify the script to point to your Snap7 location):
    ```bash
    ./setup_snap7_linux.sh
    ```
@@ -74,7 +72,7 @@ If you have manually downloaded the Snap7 archive:
 
 If you prefer using make:
 
-1. **Ensure Snap7 files are in place** (see Method 1 or 2 above)
+1. **Ensure Snap7 files are in place** (see Method 1 above)
 
 2. **Build using make**:
    ```bash
@@ -273,8 +271,11 @@ sudo ./build/S7Server
 **Problem**: Snap7 header file not found
 
 **Solution**: 
-1. Download Snap7 from http://snap7.sourceforge.net/
-2. Copy `snap7.h` to `S7Server/snap7/snap7.h`
+1. Clone Snap7 from the official GitHub repository: https://github.com/davenardella/snap7
+2. Build Snap7 following the instructions in this guide
+3. Copy `snap7.h` to `S7Server/snap7/snap7.h`
+
+**Note:** The SourceForge download site does not have the latest version. Please use the GitHub repository.
 
 ### Error: "error while loading shared libraries: libsnap7.so"
 

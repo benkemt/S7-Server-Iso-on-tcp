@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Setup script for building Snap7 library on Ubuntu/Linux
-# This script downloads and builds the Snap7 library from source
+# This script clones and builds the Snap7 library from the official GitHub repository
 
 set -e  # Exit on error
 
@@ -21,7 +21,7 @@ fi
 echo "Checking for required build tools..."
 
 if ! command -v make &> /dev/null; then
-    echo "ERROR: make is not installed"
+ echo "ERROR: make is not installed"
     echo "Install it with: sudo apt-get install build-essential"
     exit 1
 fi
@@ -29,6 +29,12 @@ fi
 if ! command -v g++ &> /dev/null; then
     echo "ERROR: g++ is not installed"
     echo "Install it with: sudo apt-get install build-essential"
+    exit 1
+fi
+
+if ! command -v git &> /dev/null; then
+    echo "ERROR: git is not installed"
+    echo "Install it with: sudo apt-get install git"
     exit 1
 fi
 
@@ -44,45 +50,40 @@ TEMP_DIR="/tmp/snap7_build"
 mkdir -p "$TEMP_DIR"
 
 echo "========================================"
-echo "MANUAL DOWNLOAD REQUIRED"
+echo "Cloning Snap7 from GitHub"
 echo "========================================"
 echo ""
-echo "Due to network restrictions, please manually download Snap7:"
-echo ""
-echo "1. Visit: http://snap7.sourceforge.net/"
-echo "2. Download the latest Snap7 release (e.g., snap7-full-1.4.2.tar.gz)"
-echo "3. Save it to: $TEMP_DIR/snap7.tar.gz"
-echo ""
-echo "Then run this script again."
+echo "NOTE: The SourceForge download site does not have the latest"
+echo "version of Snap7. We will clone from the official GitHub repository:"
+echo "https://github.com/davenardella/snap7"
 echo ""
 
-SNAP7_ARCHIVE="$TEMP_DIR/snap7.tar.gz"
+# Clone Snap7 from GitHub
+cd "$TEMP_DIR"
+if [ -d "snap7" ]; then
+    echo "Removing existing snap7 directory..."
+    rm -rf snap7
+fi
 
-if [ ! -f "$SNAP7_ARCHIVE" ]; then
-    echo "Snap7 archive not found at: $SNAP7_ARCHIVE"
+echo "Cloning Snap7 repository..."
+git clone https://github.com/davenardella/snap7.git
+
+if [ $? -ne 0 ]; then
     echo ""
-    echo "Alternative: You can manually build Snap7:"
-    echo "  1. Download and extract Snap7 from http://snap7.sourceforge.net/"
-    echo "  2. Navigate to snap7-full-x.x.x/build/unix/"
+    echo "ERROR: Failed to clone Snap7 repository"
+    echo ""
+    echo "Alternative: You can manually clone and build Snap7:"
+    echo "  1. Clone: git clone https://github.com/davenardella/snap7.git"
+    echo "  2. Navigate to: snap7/build/unix/"
     echo "  3. Run: make -f x86_64_linux.mk"
     echo "  4. Copy files to S7Server/snap7/:"
-    echo "     - ../../release/Wrappers/c-cpp/snap7.h"
-    echo "     - ../bin/x86_64-linux/libsnap7.so"
+echo "     - snap7/release/Wrappers/c-cpp/snap7.h"
+    echo "     - snap7/build/bin/x86_64-linux/libsnap7.so"
     echo ""
     exit 1
 fi
 
-echo "Found Snap7 archive, extracting..."
-cd "$TEMP_DIR"
-tar -xzf snap7.tar.gz
-
-# Find the extracted directory
-SNAP7_SRC=$(find . -maxdepth 1 -type d -name "snap7-full-*" | head -1)
-
-if [ -z "$SNAP7_SRC" ]; then
-    echo "ERROR: Could not find extracted Snap7 directory"
-    exit 1
-fi
+SNAP7_SRC="snap7"
 
 echo "Building Snap7 library..."
 cd "$SNAP7_SRC/build/unix"
@@ -90,7 +91,7 @@ cd "$SNAP7_SRC/build/unix"
 # Determine architecture
 ARCH=$(uname -m)
 if [ "$ARCH" = "x86_64" ]; then
-    MAKEFILE="x86_64_linux.mk"
+MAKEFILE="x86_64_linux.mk"
 elif [ "$ARCH" = "i686" ] || [ "$ARCH" = "i386" ]; then
     MAKEFILE="i386_linux.mk"
 elif [ "$ARCH" = "armv7l" ] || [[ "$ARCH" == armv7* ]]; then
@@ -127,14 +128,14 @@ if [ "$ARCH" = "x86_64" ]; then
 elif [ "$ARCH" = "i686" ] || [ "$ARCH" = "i386" ]; then
     LIB_DIR="$TEMP_DIR/$SNAP7_SRC/build/bin/i386-linux"
 elif [ "$ARCH" = "armv7l" ] || [[ "$ARCH" == armv7* ]] || [ "$ARCH" = "aarch64" ]; then
-    LIB_DIR="$TEMP_DIR/$SNAP7_SRC/build/bin/arm_v7-linux"
+ LIB_DIR="$TEMP_DIR/$SNAP7_SRC/build/bin/arm_v7-linux"
 else
     # Try to detect the actual build directory
     LIB_DIR=$(find "$TEMP_DIR/$SNAP7_SRC/build/bin" -maxdepth 1 -type d -name "*-linux" | head -1)
     if [ -z "$LIB_DIR" ]; then
-        echo "ERROR: Could not find Snap7 build output directory"
-        echo "Please manually copy libsnap7.so from snap7-full-x.x.x/build/bin/ to S7Server/snap7/"
-        exit 1
+   echo "ERROR: Could not find Snap7 build output directory"
+        echo "Please manually copy libsnap7.so from snap7/build/bin/ to S7Server/snap7/"
+  exit 1
     fi
 fi
 
@@ -149,6 +150,8 @@ echo ""
 echo "========================================"
 echo "✓ Snap7 setup successful!"
 echo "========================================"
+echo ""
+echo "Snap7 cloned from: https://github.com/davenardella/snap7"
 echo ""
 echo "Files installed:"
 echo "  - $DEST_DIR/snap7.h"
