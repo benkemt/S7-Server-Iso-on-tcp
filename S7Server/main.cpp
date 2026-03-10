@@ -1,15 +1,16 @@
 /*
- * S7 Server ISO-on-TCP Implementation
- * Using Snap7 Library for Node-RED Testing
- * 
- * This server creates a Siemens S7 compatible server using ISO-on-TCP protocol
- * that can be used for testing Node-RED S7 applications.
- * 
- * Features:
- * - Dynamic tag value updates based on CSV configuration
- * - Cycletime-based scheduling for value changes
- * - Sawtooth pattern value generation (min -> max -> min)
- */
+* S7 Server ISO-on-TCP Implementation
+* Using Snap7 Library for Node-RED Testing
+* 
+* This server creates a Siemens S7 compatible server using ISO-on-TCP protocol
+* that can be used for testing Node-RED S7 applications.
+* 
+* Features:
+* - Dynamic tag value updates based on CSV configuration
+* - Cycletime-based scheduling for value changes
+* - Sawtooth pattern value generation (min -> max -> min)
+* - Support for REAL and DWORD data types
+*/
 
 #include <iostream>
 #include <fstream>
@@ -30,15 +31,24 @@ S7Object S7Server = 0;
 bool ServerRunning = true;
 
 // Constants
-const int REAL_SIZE = 4;  // S7 REAL data type size in bytes
+const int REAL_SIZE = 4;   // S7 REAL data type size in bytes
+const int DWORD_SIZE = 4;  // S7 DWORD data type size in bytes
+
+// Enumeration for data types
+enum class DataType {
+    REAL,
+    DWORD,
+    UNKNOWN
+};
 
 // Structure to hold CSV configuration entry
 struct CSVConfigEntry {
     int dbNumber;
     int offset;
-    float minValue;
-    float maxValue;
-    float echelon;
+    DataType dataType;
+    double minValue;  // Using double to support both float and uint32 ranges
+    double maxValue;
+    double echelon;
     int cycletime;
 };
 
@@ -46,10 +56,11 @@ struct CSVConfigEntry {
 struct TagState {
     int dbNumber;
     int offset;
-    float currentValue;
-    float minValue;
-    float maxValue;
-    float echelon;
+    DataType dataType;
+    double currentValue;  // Using double to support both float and uint32 ranges
+    double minValue;
+    double maxValue;
+    double echelon;
     int cycletime;
     bool increasing;  // true = increasing, false = decreasing
     std::chrono::steady_clock::time_point lastUpdateTime;
@@ -206,17 +217,42 @@ float GetReal(byte* buffer, int offset) {
     return *reinterpret_cast<float*>(floatBytes);
 }
 
-// Parse CSV tag format "DB<number>,REAL<offset>"
-bool ParseTag(const std::string& tag, int& dbNumber, int& offset) {
+// Helper function to convert uint32 to S7 DWORD format (big-endian)
+// Note: This function assumes the host system uses little-endian byte order (x86/x64 Windows).
+// The caller is responsible for ensuring the buffer has sufficient space (offset + 4 bytes).
+void SetDWord(byte* buffer, int offset, uint32_t value) {
+    // Convert uint32 to bytes
+    byte* dwordBytes = reinterpret_cast<byte*>(&value);
+    
+    // S7 uses big-endian byte order, but Windows x86/x64 systems use little-endian
+    // We need to reverse the byte order
+    buffer[offset + 0] = dwordBytes[3];  // Most significant byte
+    buffer[offset + 1] = dwordBytes[2];
+    buffer[offset + 2] = dwordBytes[1];
+    buffer[offset + 3] = dwordBytes[0];  // Least significant byte
+}
+
+// Helper function to read uint32 from S7 DWORD format (big-endian)
+uint32_t GetDWord(byte* buffer, int offset) {
+    // S7 uses big-endian byte order, convert to little-endian
+    byte dwordBytes[4];
+    dwordBytes[3] = buffer[offset + 0];  // Most significant byte
+    dwordBytes[2] = buffer[offset + 1];
+    dwordBytes[1] = buffer[offset + 2];
+    dwordBytes[0] = buffer[offset + 3];  // Least significant byte
+    
+    return *reinterpret_cast<uint32_t*>(dwordBytes);
+}
+
+// Parse CSV tag format "DB<number>,REAL<offset>" or "DB<number>,DWORD<offset>"
+bool ParseTag(const std::string& tag, int& dbNumber, int& offset, DataType& dataType) {
     // Remove quotes if present
     std::string cleanTag = tag;
     cleanTag.erase(std::remove(cleanTag.begin(), cleanTag.end(), '\"'), cleanTag.end());
     
-    // Find DB and REAL positions
+    // Find DB position
     size_t dbPos = cleanTag.find("DB");
-    size_t realPos = cleanTag.find("REAL");
-    
-    if (dbPos == std::string::npos || realPos == std::string::npos) {
+    if (dbPos == std::string::npos) {
         return false;
     }
     
@@ -230,11 +266,27 @@ bool ParseTag(const std::string& tag, int& dbNumber, int& offset) {
         std::string dbNumStr = cleanTag.substr(dbPos + 2, commaPos - dbPos - 2);
         dbNumber = std::stoi(dbNumStr);
         
-        // Extract offset (after "REAL")
-        std::string offsetStr = cleanTag.substr(realPos + 4);
-        offset = std::stoi(offsetStr);
+        // Check for data type and extract offset
+        size_t realPos = cleanTag.find("REAL");
+        size_t dwordPos = cleanTag.find("DWORD");
         
-        return true;
+        if (realPos != std::string::npos) {
+            // REAL data type
+            dataType = DataType::REAL;
+            std::string offsetStr = cleanTag.substr(realPos + 4);
+            offset = std::stoi(offsetStr);
+            return true;
+        } else if (dwordPos != std::string::npos) {
+            // DWORD data type
+            dataType = DataType::DWORD;
+            std::string offsetStr = cleanTag.substr(dwordPos + 5);
+            offset = std::stoi(offsetStr);
+            return true;
+        } else {
+            // Unknown data type
+            dataType = DataType::UNKNOWN;
+            return false;
+        }
     } catch (...) {
         return false;
     }
@@ -296,16 +348,16 @@ std::vector<CSVConfigEntry> LoadCSVConfig(const std::string& filename) {
         if (fields.size() >= 5) {
             CSVConfigEntry entry;
             
-            // Parse tag to get DB number and offset
-            if (!ParseTag(fields[0], entry.dbNumber, entry.offset)) {
+            // Parse tag to get DB number, offset, and data type
+            if (!ParseTag(fields[0], entry.dbNumber, entry.offset, entry.dataType)) {
                 std::cerr << "WARNING: Failed to parse tag: " << fields[0] << std::endl;
                 continue;
             }
             
             try {
-                entry.minValue = std::stof(fields[1]);
-                entry.maxValue = std::stof(fields[2]);
-                entry.echelon = std::stof(fields[3]);
+                entry.minValue = std::stod(fields[1]);
+                entry.maxValue = std::stod(fields[2]);
+                entry.echelon = std::stod(fields[3]);
                 entry.cycletime = std::stoi(fields[4]);
                 
                 entries.push_back(entry);
@@ -336,7 +388,8 @@ std::vector<DataBlock> CreateDataBlocksFromCSV(const std::vector<CSVConfigEntry>
     
     // First pass: determine required size for each DB
     for (const auto& entry : entries) {
-        int requiredSize = entry.offset + REAL_SIZE;
+        int typeSize = (entry.dataType == DataType::DWORD) ? DWORD_SIZE : REAL_SIZE;
+        int requiredSize = entry.offset + typeSize;
         if (dbSizes.find(entry.dbNumber) == dbSizes.end()) {
             dbSizes[entry.dbNumber] = requiredSize;
         } else {
@@ -369,10 +422,18 @@ std::vector<DataBlock> CreateDataBlocksFromCSV(const std::vector<CSVConfigEntry>
         if (it != dbMap.end()) {
 			DataBlock* db = it->second;
 
-            float value = entry.minValue;  // Start at minimum value
-
-			SetReal(db->data, entry.offset, value);
-            std::cout << "  DB" << db->number << ".REAL" << entry.offset << " = " << value << " (range: " << entry.minValue << " to " << entry.maxValue << ")" << std::endl;
+            if (entry.dataType == DataType::REAL) {
+                float value = static_cast<float>(entry.minValue);  // Start at minimum value
+                SetReal(db->data, entry.offset, value);
+                std::cout << "  DB" << db->number << ".REAL" << entry.offset << " = " << value 
+                          << " (range: " << entry.minValue << " to " << entry.maxValue << ")" << std::endl;
+            } else if (entry.dataType == DataType::DWORD) {
+                uint32_t value = static_cast<uint32_t>(entry.minValue);  // Start at minimum value
+                SetDWord(db->data, entry.offset, value);
+                std::cout << "  DB" << db->number << ".DWORD" << entry.offset << " = " << value 
+                          << " (range: " << static_cast<uint32_t>(entry.minValue) 
+                          << " to " << static_cast<uint32_t>(entry.maxValue) << ")" << std::endl;
+            }
         }
     }
     
@@ -438,6 +499,7 @@ std::vector<TagState> InitializeTagStates(const std::vector<CSVConfigEntry>& ent
             TagState state;
             state.dbNumber = entry.dbNumber;
             state.offset = entry.offset;
+            state.dataType = entry.dataType;
             state.currentValue = entry.minValue;  // Start at minimum
             state.minValue = entry.minValue;
             state.maxValue = entry.maxValue;
@@ -485,8 +547,12 @@ void UpdateTagValues(std::vector<TagState>& tagStates) {
                 }
             }
             
-            // Write the new value to the data block
-            SetReal(tag.dataPtr, tag.offset, tag.currentValue);
+            // Write the new value to the data block based on data type
+            if (tag.dataType == DataType::REAL) {
+                SetReal(tag.dataPtr, tag.offset, static_cast<float>(tag.currentValue));
+            } else if (tag.dataType == DataType::DWORD) {
+                SetDWord(tag.dataPtr, tag.offset, static_cast<uint32_t>(tag.currentValue));
+            }
             
             // Update last update time
             tag.lastUpdateTime = currentTime;
