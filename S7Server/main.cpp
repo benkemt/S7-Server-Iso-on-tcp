@@ -9,7 +9,7 @@
 * - Dynamic tag value updates based on CSV configuration
 * - Cycletime-based scheduling for value changes
 * - Sawtooth pattern value generation (min -> max -> min)
-* - Support for REAL and DWORD data types
+* - Support for REAL, DWORD, INT, and BOOL data types
 */
 
 #include <iostream>
@@ -33,11 +33,15 @@ bool ServerRunning = true;
 // Constants
 const int REAL_SIZE = 4;   // S7 REAL data type size in bytes
 const int DWORD_SIZE = 4;  // S7 DWORD data type size in bytes
+const int INT_SIZE = 2;    // S7 INT data type size in bytes
+const int BOOL_SIZE = 1;   // S7 BOOL data type size in bits (stored in 1 byte)
 
 // Enumeration for data types
 enum class DataType {
     REAL,
     DWORD,
+    INT,
+    BOOL,
     UNKNOWN
 };
 
@@ -45,6 +49,7 @@ enum class DataType {
 struct CSVConfigEntry {
     int dbNumber;
     int offset;
+    int bitPosition;  // For BOOL type (0-7), -1 for other types
     DataType dataType;
     double minValue;  // Using double to support both float and uint32 ranges
     double maxValue;
@@ -56,6 +61,7 @@ struct CSVConfigEntry {
 struct TagState {
     int dbNumber;
     int offset;
+    int bitPosition;  // For BOOL type (0-7), -1 for other types
     DataType dataType;
     double currentValue;  // Using double to support both float and uint32 ranges
     double minValue;
@@ -244,8 +250,50 @@ uint32_t GetDWord(byte* buffer, int offset) {
     return *reinterpret_cast<uint32_t*>(dwordBytes);
 }
 
-// Parse CSV tag format "DB<number>,REAL<offset>" or "DB<number>,DWORD<offset>"
-bool ParseTag(const std::string& tag, int& dbNumber, int& offset, DataType& dataType) {
+// Helper function to convert int16 to S7 INT format (big-endian)
+// Note: This function assumes the host system uses little-endian byte order (x86/x64 Windows).
+// The caller is responsible for ensuring the buffer has sufficient space (offset + 2 bytes).
+void SetInt(byte* buffer, int offset, int16_t value) {
+    // Convert int16 to bytes
+    byte* intBytes = reinterpret_cast<byte*>(&value);
+    
+    // S7 uses big-endian byte order, but Windows x86/x64 systems use little-endian
+    // We need to reverse the byte order
+    buffer[offset + 0] = intBytes[1];  // Most significant byte
+    buffer[offset + 1] = intBytes[0];  // Least significant byte
+}
+
+// Helper function to read int16 from S7 INT format (big-endian)
+int16_t GetInt(byte* buffer, int offset) {
+    // S7 uses big-endian byte order, convert to little-endian
+    byte intBytes[2];
+    intBytes[1] = buffer[offset + 0];  // Most significant byte
+    intBytes[0] = buffer[offset + 1];  // Least significant byte
+    
+    return *reinterpret_cast<int16_t*>(intBytes);
+}
+
+// Helper function to set a single bit in S7 BOOL format
+// bitPosition: 0-7 (0 is LSB, 7 is MSB)
+void SetBool(byte* buffer, int offset, int bitPosition, bool value) {
+    if (value) {
+        // Set bit to 1
+        buffer[offset] |= (1 << bitPosition);
+    } else {
+        // Set bit to 0
+        buffer[offset] &= ~(1 << bitPosition);
+    }
+}
+
+// Helper function to read a single bit from S7 BOOL format
+// bitPosition: 0-7 (0 is LSB, 7 is MSB)
+bool GetBool(byte* buffer, int offset, int bitPosition) {
+    return (buffer[offset] & (1 << bitPosition)) != 0;
+}
+
+// Parse CSV tag format "DB<number>,REAL<offset>", "DB<number>,DWORD<offset>", 
+// "DB<number>,INT<offset>", or "DB<number>,X<offset>.<bit>"
+bool ParseTag(const std::string& tag, int& dbNumber, int& offset, int& bitPosition, DataType& dataType) {
     // Remove quotes if present
     std::string cleanTag = tag;
     cleanTag.erase(std::remove(cleanTag.begin(), cleanTag.end(), '\"'), cleanTag.end());
@@ -266,21 +314,57 @@ bool ParseTag(const std::string& tag, int& dbNumber, int& offset, DataType& data
         std::string dbNumStr = cleanTag.substr(dbPos + 2, commaPos - dbPos - 2);
         dbNumber = std::stoi(dbNumStr);
         
-        // Check for data type and extract offset
-        size_t realPos = cleanTag.find("REAL");
-        size_t dwordPos = cleanTag.find("DWORD");
+        // Get the part after the comma
+        std::string typeAndOffset = cleanTag.substr(commaPos + 1);
         
-        if (realPos != std::string::npos) {
+        // Check for data type and extract offset
+        size_t realPos = typeAndOffset.find("REAL");
+        size_t dwordPos = typeAndOffset.find("DWORD");
+        size_t intPos = typeAndOffset.find("INT");
+        size_t xPos = typeAndOffset.find("X");
+        
+        bitPosition = -1;  // Default: not a BOOL
+        
+        if (realPos == 0) {
             // REAL data type
             dataType = DataType::REAL;
-            std::string offsetStr = cleanTag.substr(realPos + 4);
+            std::string offsetStr = typeAndOffset.substr(4);
             offset = std::stoi(offsetStr);
             return true;
-        } else if (dwordPos != std::string::npos) {
+        } else if (dwordPos == 0) {
             // DWORD data type
             dataType = DataType::DWORD;
-            std::string offsetStr = cleanTag.substr(dwordPos + 5);
+            std::string offsetStr = typeAndOffset.substr(5);
             offset = std::stoi(offsetStr);
+            return true;
+        } else if (intPos == 0) {
+            // INT data type
+            dataType = DataType::INT;
+            std::string offsetStr = typeAndOffset.substr(3);
+            offset = std::stoi(offsetStr);
+            return true;
+        } else if (xPos == 0) {
+            // BOOL data type (X format: X<offset>.<bit>)
+            dataType = DataType::BOOL;
+            std::string remainder = typeAndOffset.substr(1);
+            
+            // Find the dot separator
+            size_t dotPos = remainder.find('.');
+            if (dotPos == std::string::npos) {
+                return false;  // BOOL must have bit position
+            }
+            
+            std::string offsetStr = remainder.substr(0, dotPos);
+            std::string bitStr = remainder.substr(dotPos + 1);
+            
+            offset = std::stoi(offsetStr);
+            bitPosition = std::stoi(bitStr);
+            
+            // Validate bit position (0-7)
+            if (bitPosition < 0 || bitPosition > 7) {
+                return false;
+            }
+            
             return true;
         } else {
             // Unknown data type
@@ -348,8 +432,8 @@ std::vector<CSVConfigEntry> LoadCSVConfig(const std::string& filename) {
         if (fields.size() >= 5) {
             CSVConfigEntry entry;
             
-            // Parse tag to get DB number, offset, and data type
-            if (!ParseTag(fields[0], entry.dbNumber, entry.offset, entry.dataType)) {
+            // Parse tag to get DB number, offset, bit position, and data type
+            if (!ParseTag(fields[0], entry.dbNumber, entry.offset, entry.bitPosition, entry.dataType)) {
                 std::cerr << "WARNING: Failed to parse tag: " << fields[0] << std::endl;
                 continue;
             }
@@ -388,7 +472,24 @@ std::vector<DataBlock> CreateDataBlocksFromCSV(const std::vector<CSVConfigEntry>
     
     // First pass: determine required size for each DB
     for (const auto& entry : entries) {
-        int typeSize = (entry.dataType == DataType::DWORD) ? DWORD_SIZE : REAL_SIZE;
+        int typeSize;
+        switch (entry.dataType) {
+            case DataType::REAL:
+                typeSize = REAL_SIZE;
+                break;
+            case DataType::DWORD:
+                typeSize = DWORD_SIZE;
+                break;
+            case DataType::INT:
+                typeSize = INT_SIZE;
+                break;
+            case DataType::BOOL:
+                typeSize = 1;  // BOOL occupies at least 1 byte
+                break;
+            default:
+                typeSize = REAL_SIZE;  // Default fallback
+                break;
+        }
         int requiredSize = entry.offset + typeSize;
         if (dbSizes.find(entry.dbNumber) == dbSizes.end()) {
             dbSizes[entry.dbNumber] = requiredSize;
@@ -433,6 +534,19 @@ std::vector<DataBlock> CreateDataBlocksFromCSV(const std::vector<CSVConfigEntry>
                 std::cout << "  DB" << db->number << ".DWORD" << entry.offset << " = " << value 
                           << " (range: " << static_cast<uint32_t>(entry.minValue) 
                           << " to " << static_cast<uint32_t>(entry.maxValue) << ")" << std::endl;
+            } else if (entry.dataType == DataType::INT) {
+                int16_t value = static_cast<int16_t>(entry.minValue);  // Start at minimum value
+                SetInt(db->data, entry.offset, value);
+                std::cout << "  DB" << db->number << ".INT" << entry.offset << " = " << value 
+                          << " (range: " << static_cast<int16_t>(entry.minValue) 
+                          << " to " << static_cast<int16_t>(entry.maxValue) << ")" << std::endl;
+            } else if (entry.dataType == DataType::BOOL) {
+                bool value = (entry.minValue != 0);  // Start at minimum value (0 or 1)
+                SetBool(db->data, entry.offset, entry.bitPosition, value);
+                std::cout << "  DB" << db->number << ".X" << entry.offset << "." << entry.bitPosition 
+                          << " = " << (value ? "true" : "false") 
+                          << " (range: " << static_cast<int>(entry.minValue) 
+                          << " to " << static_cast<int>(entry.maxValue) << ")" << std::endl;
             }
         }
     }
@@ -499,6 +613,7 @@ std::vector<TagState> InitializeTagStates(const std::vector<CSVConfigEntry>& ent
             TagState state;
             state.dbNumber = entry.dbNumber;
             state.offset = entry.offset;
+            state.bitPosition = entry.bitPosition;
             state.dataType = entry.dataType;
             state.currentValue = entry.minValue;  // Start at minimum
             state.minValue = entry.minValue;
@@ -552,6 +667,12 @@ void UpdateTagValues(std::vector<TagState>& tagStates) {
                 SetReal(tag.dataPtr, tag.offset, static_cast<float>(tag.currentValue));
             } else if (tag.dataType == DataType::DWORD) {
                 SetDWord(tag.dataPtr, tag.offset, static_cast<uint32_t>(tag.currentValue));
+            } else if (tag.dataType == DataType::INT) {
+                SetInt(tag.dataPtr, tag.offset, static_cast<int16_t>(tag.currentValue));
+            } else if (tag.dataType == DataType::BOOL) {
+                // For BOOL, toggle between 0 and 1
+                bool boolValue = (static_cast<int>(tag.currentValue) != 0);
+                SetBool(tag.dataPtr, tag.offset, tag.bitPosition, boolValue);
             }
             
             // Update last update time
