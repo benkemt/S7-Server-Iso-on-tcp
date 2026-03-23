@@ -36,6 +36,15 @@ const int DWORD_SIZE = 4;  // S7 DWORD data type size in bytes
 const int INT_SIZE = 2;    // S7 INT data type size in bytes
 const int BOOL_SIZE = 1;   // S7 BOOL data type size in bits (stored in 1 byte)
 
+// Enumeration for memory area types
+enum class AreaType {
+    DB,      // Data Block
+    INPUT,   // Input area (E/I)
+    OUTPUT,  // Output area (A/Q)
+    MERKER,  // Flag/Marker area (M)
+    UNKNOWN
+};
+
 // Enumeration for data types
 enum class DataType {
     REAL,
@@ -47,7 +56,8 @@ enum class DataType {
 
 // Structure to hold CSV configuration entry
 struct CSVConfigEntry {
-    int dbNumber;
+    AreaType areaType;  // Memory area type (DB, INPUT, etc.)
+    int dbNumber;       // DB number (only for DB area type)
     int offset;
     int bitPosition;  // For BOOL type (0-7), -1 for other types
     DataType dataType;
@@ -59,7 +69,8 @@ struct CSVConfigEntry {
 
 // Structure to hold tag state for dynamic updates
 struct TagState {
-    int dbNumber;
+    AreaType areaType;  // Memory area type (DB, INPUT, etc.)
+    int dbNumber;       // DB number (only for DB area type)
     int offset;
     int bitPosition;  // For BOOL type (0-7), -1 for other types
     DataType dataType;
@@ -70,7 +81,7 @@ struct TagState {
     int cycletime;
     bool increasing;  // true = increasing, false = decreasing
     std::chrono::steady_clock::time_point lastUpdateTime;
-    byte* dataPtr;  // Pointer to the data block memory
+    byte* dataPtr;  // Pointer to the memory area
 };
 
 // Structure to hold Data Block information
@@ -292,17 +303,53 @@ bool GetBool(byte* buffer, int offset, int bitPosition) {
 }
 
 // Parse CSV tag format "DB<number>,REAL<offset>", "DB<number>,DWORD<offset>", 
-// "DB<number>,INT<offset>", or "DB<number>,X<offset>.<bit>"
-bool ParseTag(const std::string& tag, int& dbNumber, int& offset, int& bitPosition, DataType& dataType) {
+// "DB<number>,INT<offset>", "DB<number>,X<offset>.<bit>"
+// or Input area format "E<offset>.<bit>" or "I<offset>.<bit>"
+bool ParseTag(const std::string& tag, AreaType& areaType, int& dbNumber, int& offset, int& bitPosition, DataType& dataType) {
     // Remove quotes if present
     std::string cleanTag = tag;
     cleanTag.erase(std::remove(cleanTag.begin(), cleanTag.end(), '\"'), cleanTag.end());
+    
+    // Check for Input area format (E or I prefix)
+    if (cleanTag[0] == 'E' || cleanTag[0] == 'I') {
+        areaType = AreaType::INPUT;
+        dbNumber = 0;  // Not applicable for input area
+        dataType = DataType::BOOL;  // Input area addresses are always BOOL
+        
+        // Parse format: E<offset>.<bit> or I<offset>.<bit>
+        std::string remainder = cleanTag.substr(1);
+        
+        // Find the dot separator
+        size_t dotPos = remainder.find('.');
+        if (dotPos == std::string::npos) {
+            return false;  // Input area must have bit position
+        }
+        
+        try {
+            std::string offsetStr = remainder.substr(0, dotPos);
+            std::string bitStr = remainder.substr(dotPos + 1);
+            
+            offset = std::stoi(offsetStr);
+            bitPosition = std::stoi(bitStr);
+            
+            // Validate bit position (0-7)
+            if (bitPosition < 0 || bitPosition > 7) {
+                return false;
+            }
+            
+            return true;
+        } catch (...) {
+            return false;
+        }
+    }
     
     // Find DB position
     size_t dbPos = cleanTag.find("DB");
     if (dbPos == std::string::npos) {
         return false;
     }
+    
+    areaType = AreaType::DB;
     
     // Extract DB number (between "DB" and ",")
     size_t commaPos = cleanTag.find(',');
@@ -432,8 +479,8 @@ std::vector<CSVConfigEntry> LoadCSVConfig(const std::string& filename) {
         if (fields.size() >= 5) {
             CSVConfigEntry entry;
             
-            // Parse tag to get DB number, offset, bit position, and data type
-            if (!ParseTag(fields[0], entry.dbNumber, entry.offset, entry.bitPosition, entry.dataType)) {
+            // Parse tag to get area type, DB number, offset, bit position, and data type
+            if (!ParseTag(fields[0], entry.areaType, entry.dbNumber, entry.offset, entry.bitPosition, entry.dataType)) {
                 std::cerr << "WARNING: Failed to parse tag: " << fields[0] << std::endl;
                 continue;
             }
@@ -470,8 +517,13 @@ std::vector<DataBlock> CreateDataBlocksFromCSV(const std::vector<CSVConfigEntry>
     std::map<int, int> dbSizes; // DB number -> required size
     std::vector<DataBlock> dataBlocks;
     
-    // First pass: determine required size for each DB
+    // First pass: determine required size for each DB (skip non-DB entries)
     for (const auto& entry : entries) {
+        // Only process DB area entries for this function
+        if (entry.areaType != AreaType::DB) {
+            continue;
+        }
+        
         int typeSize;
         switch (entry.dataType) {
             case DataType::REAL:
@@ -519,6 +571,11 @@ std::vector<DataBlock> CreateDataBlocksFromCSV(const std::vector<CSVConfigEntry>
     // Third pass: initialize values from CSV using map for fast lookup
     // Start values at minimum to begin the increasing cycle
     for (const auto& entry : entries) {
+        // Only process DB area entries for initialization
+        if (entry.areaType != AreaType::DB) {
+            continue;
+        }
+        
         auto it = dbMap.find(entry.dbNumber);
         if (it != dbMap.end()) {
 			DataBlock* db = it->second;
@@ -595,9 +652,10 @@ void DisplayStatus(S7Object Server) {
 	}
 }
 
-// Initialize tag states from CSV configuration and data blocks
+// Initialize tag states from CSV configuration, data blocks, and memory areas
 std::vector<TagState> InitializeTagStates(const std::vector<CSVConfigEntry>& entries, 
-                                          const std::vector<DataBlock>& dataBlocks) {
+                                          const std::vector<DataBlock>& dataBlocks,
+                                          byte* IArea, byte* QArea, byte* MArea) {
     std::vector<TagState> tagStates;
     
     // Build map for fast DB lookup
@@ -608,24 +666,50 @@ std::vector<TagState> InitializeTagStates(const std::vector<CSVConfigEntry>& ent
     
     // Create tag state for each CSV entry
     for (const auto& entry : entries) {
-        auto it = dbMap.find(entry.dbNumber);
-        if (it != dbMap.end()) {
-            TagState state;
-            state.dbNumber = entry.dbNumber;
-            state.offset = entry.offset;
-            state.bitPosition = entry.bitPosition;
-            state.dataType = entry.dataType;
-            state.currentValue = entry.minValue;  // Start at minimum
-            state.minValue = entry.minValue;
-            state.maxValue = entry.maxValue;
-            state.echelon = entry.echelon;
-            state.cycletime = entry.cycletime;
-            state.increasing = true;  // Start by increasing
-            state.lastUpdateTime = std::chrono::steady_clock::now();
-            state.dataPtr = it->second->data;
-            
-            tagStates.push_back(state);
+        TagState state;
+        state.areaType = entry.areaType;
+        state.dbNumber = entry.dbNumber;
+        state.offset = entry.offset;
+        state.bitPosition = entry.bitPosition;
+        state.dataType = entry.dataType;
+        state.currentValue = entry.minValue;  // Start at minimum
+        state.minValue = entry.minValue;
+        state.maxValue = entry.maxValue;
+        state.echelon = entry.echelon;
+        state.cycletime = entry.cycletime;
+        state.increasing = true;  // Start by increasing
+        state.lastUpdateTime = std::chrono::steady_clock::now();
+        
+        // Set data pointer based on area type
+        if (entry.areaType == AreaType::DB) {
+            auto it = dbMap.find(entry.dbNumber);
+            if (it != dbMap.end()) {
+                state.dataPtr = it->second->data;
+            } else {
+                std::cerr << "WARNING: DB" << entry.dbNumber << " not found for tag state" << std::endl;
+                continue;
+            }
+        } else if (entry.areaType == AreaType::INPUT) {
+            state.dataPtr = IArea;
+            // Initialize the input area value
+            if (entry.dataType == DataType::BOOL) {
+                bool value = (entry.minValue != 0);
+                SetBool(IArea, entry.offset, entry.bitPosition, value);
+                std::cout << "  E" << entry.offset << "." << entry.bitPosition 
+                          << " = " << (value ? "true" : "false")
+                          << " (range: " << static_cast<int>(entry.minValue)
+                          << " to " << static_cast<int>(entry.maxValue) << ")" << std::endl;
+            }
+        } else if (entry.areaType == AreaType::OUTPUT) {
+            state.dataPtr = QArea;
+        } else if (entry.areaType == AreaType::MERKER) {
+            state.dataPtr = MArea;
+        } else {
+            std::cerr << "WARNING: Unknown area type for tag state" << std::endl;
+            continue;
         }
+        
+        tagStates.push_back(state);
     }
     
     std::cout << "\nInitialized " << tagStates.size() << " tag states for dynamic updates." << std::endl;
@@ -753,6 +837,32 @@ int main() {
     // Allocate standard memory areas for PLC simulation
     // Inputs (256 bytes)
     byte* IArea = new byte[256]();
+    
+    // Initialize some test values in Input area for testing
+    // E20.0 (I20.0) - BOOL bits
+    SetBool(IArea, 20, 0, true);   // E20.0 = true
+    SetBool(IArea, 20, 1, false);  // E20.1 = false
+    SetBool(IArea, 20, 2, true);   // E20.2 = true
+    
+    // E0.0-E0.7 - BOOL bits
+    SetBool(IArea, 0, 0, true);    // E0.0 = true
+    SetBool(IArea, 0, 1, true);    // E0.1 = true
+    
+    // E10 - INT value
+    SetInt(IArea, 10, 1234);       // E10 = 1234 (INT)
+    
+    // E12 - DWORD value
+    SetDWord(IArea, 12, 567890);   // E12 = 567890 (DWORD)
+    
+    // E16 - REAL value
+    SetReal(IArea, 16, 123.45f);   // E16 = 123.45 (REAL)
+    
+    std::cout << "Initialized Input area with test values:" << std::endl;
+    std::cout << "  E20.0 = true, E20.1 = false, E20.2 = true" << std::endl;
+    std::cout << "  E0.0 = true, E0.1 = true" << std::endl;
+    std::cout << "  E10 (INT) = 1234" << std::endl;
+    std::cout << "  E12 (DWORD) = 567890" << std::endl;
+    std::cout << "  E16 (REAL) = 123.45" << std::endl;
     
     // Outputs (256 bytes)
     byte* QArea = new byte[256]();
@@ -904,7 +1014,7 @@ int main() {
     // Initialize tag states for dynamic value updates
     std::vector<TagState> tagStates;
     if (!csvConfig.empty()) {
-        tagStates = InitializeTagStates(csvConfig, dataBlocks);
+        tagStates = InitializeTagStates(csvConfig, dataBlocks, IArea, QArea, MArea);
         std::cout << "Dynamic tag value updates enabled with 100ms update interval." << std::endl;
     }
     
