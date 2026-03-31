@@ -25,10 +25,23 @@
 #include <random>
 #include <algorithm>
 #include "snap7.h"
+#include "HttpServer.h"
+#include "MemoryAccessor.h"
+#include "TagValueCodec.h"
+#include "HexFormatter.h"
+#include "APIEndpoints.h"
+#include "json/json.hpp"
+
+using json = nlohmann::json;
 
 // Global server instance
 S7Object S7Server = 0;
 bool ServerRunning = true;
+
+// Global HTTP server and memory accessor (for web UI)
+HttpServer* g_httpServer = nullptr;
+MemoryAccessor* g_memoryAccessor = nullptr;
+std::vector<TagState>* g_tagStates = nullptr;
 
 // Constants
 const int REAL_SIZE = 4;   // S7 REAL data type size in bytes
@@ -82,7 +95,9 @@ struct TagState {
     bool increasing;  // true = increasing, false = decreasing
     std::chrono::steady_clock::time_point lastUpdateTime;
     byte* dataPtr;  // Pointer to the memory area
+    bool manualOverride;  // true if manually set via web UI (disables auto-update)
 };
+
 
 // Structure to hold Data Block information
 struct DataBlock {
@@ -709,6 +724,7 @@ std::vector<TagState> InitializeTagStates(const std::vector<CSVConfigEntry>& ent
             continue;
         }
         
+        state.manualOverride = false;  // Initially not manually overridden
         tagStates.push_back(state);
     }
     
@@ -721,6 +737,11 @@ void UpdateTagValues(std::vector<TagState>& tagStates) {
     auto currentTime = std::chrono::steady_clock::now();
     
     for (auto& tag : tagStates) {
+        // Skip tags with manual override (user has set value via web UI)
+        if (tag.manualOverride) {
+            continue;
+        }
+        
         // Calculate elapsed time since last update in milliseconds
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
             currentTime - tag.lastUpdateTime).count();
@@ -790,10 +811,42 @@ bool VerifyDBAreaAccessible(S7Object server, int dbNumber, int size) {
     return false;
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    // Parse command-line arguments
+    bool enableWebUI = false;
+    int webUIPort = 8080;
+    
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--web-ui" || arg == "-w") {
+            enableWebUI = true;
+        } else if (arg == "--web-port" && i + 1 < argc) {
+            webUIPort = std::atoi(argv[++i]);
+        } else if (arg == "--help" || arg == "-h") {
+            std::cout << "S7 Server ISO-on-TCP Usage:" << std::endl;
+            std::cout << "  " << argv[0] << " [options]" << std::endl;
+            std::cout << "\nOptions:" << std::endl;
+            std::cout << "  --web-ui, -w         Enable web UI (default: disabled)" << std::endl;
+            std::cout << "  --web-port <port>    Set web UI port (default: 8080)" << std::endl;
+            std::cout << "  --help, -h           Show this help message" << std::endl;
+            std::cout << "\nExamples:" << std::endl;
+            std::cout << "  " << argv[0] << "                  # Run without web UI" << std::endl;
+            std::cout << "  " << argv[0] << " --web-ui         # Run with web UI on port 8080" << std::endl;
+            std::cout << "  " << argv[0] << " -w --web-port 9090  # Run with web UI on port 9090" << std::endl;
+            return 0;
+        } else {
+            std::cerr << "Unknown option: " << arg << std::endl;
+            std::cerr << "Use --help for usage information" << std::endl;
+            return 1;
+        }
+    }
+
     std::cout << "========================================" << std::endl;
 	std::cout << "S7 Server ISO-on-TCP (Snap7)" << std::endl;
     std::cout << "For Node-RED Testing" << std::endl;
+    if (enableWebUI) {
+        std::cout << "Web UI: Enabled (port " << webUIPort << ")" << std::endl;
+    }
     std::cout << "========================================\n" << std::endl;
 
     // Set up signal handler for Ctrl+C
@@ -1018,6 +1071,37 @@ int main() {
         std::cout << "Dynamic tag value updates enabled with 100ms update interval." << std::endl;
     }
     
+    // Set up memory accessor for web UI
+    g_memoryAccessor = new MemoryAccessor();
+    for (const auto& db : dataBlocks) {
+        g_memoryAccessor->registerDataBlock(db.number, db.data, db.size);
+    }
+    g_memoryAccessor->registerInputArea(IArea, 256);
+    g_memoryAccessor->registerOutputArea(QArea, 256);
+    g_memoryAccessor->registerFlagArea(MArea, 256);
+    g_memoryAccessor->registerTimerArea(TArea, 512);
+    g_memoryAccessor->registerCounterArea(CArea, 512);
+    
+    // Store reference to tag states for HTTP server
+    g_tagStates = &tagStates;
+    
+    // Start HTTP server if web UI is enabled
+    if (enableWebUI) {
+        std::cout << "\nStarting web UI server..." << std::endl;
+        g_httpServer = new HttpServer(webUIPort);
+        
+        // Register API endpoints
+        APIEndpoints::registerEndpoints(g_httpServer, g_memoryAccessor, g_tagStates);
+        
+        if (g_httpServer->start()) {
+            std::cout << "Web UI available at: http://localhost:" << webUIPort << std::endl;
+        } else {
+            std::cerr << "WARNING: Failed to start web UI server" << std::endl;
+            delete g_httpServer;
+            g_httpServer = nullptr;
+        }
+    }
+    
     std::cout << "Server is running. Press Ctrl+C to stop.\n" << std::endl;
 
     // Main server loop with time-based status updates and tag value updates
@@ -1043,6 +1127,23 @@ int main() {
 
     // Shutdown
     std::cout << "\nStopping server..." << std::endl;
+    
+    // Stop HTTP server first
+    if (g_httpServer) {
+        g_httpServer->stop();
+        delete g_httpServer;
+        g_httpServer = nullptr;
+    }
+    
+    // Cleanup memory accessor
+    if (g_memoryAccessor) {
+        delete g_memoryAccessor;
+        g_memoryAccessor = nullptr;
+    }
+    
+    // Clear tag states pointer
+    g_tagStates = nullptr;
+    
 	Srv_Stop(S7Server);
     
     std::cout << "Cleaning up resources..." << std::endl;

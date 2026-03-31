@@ -7,10 +7,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Include directories
 include_directories(${PROJECT_SOURCE_DIR}/S7Server/snap7)
+include_directories(${PROJECT_SOURCE_DIR}/S7Server/httplib)
+include_directories(${PROJECT_SOURCE_DIR}/S7Server/json)
 
 # Source files
 set(SOURCES
     S7Server/main.cpp
+    S7Server/HttpServer.cpp
+    S7Server/MemoryAccessor.cpp
+    S7Server/TagValueCodec.cpp
+    S7Server/HexFormatter.cpp
+    S7Server/APIEndpoints.cpp
+    S7Server/WebUIContent.cpp
 )
 
 # Create executable
